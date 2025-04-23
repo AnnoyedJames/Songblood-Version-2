@@ -1,0 +1,114 @@
+"use client"
+
+import { Bar } from "react-chartjs-2"
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js"
+
+// Register ChartJS components
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+
+type InventoryItem = {
+  blood_type: string
+  rh?: string
+  count: number
+  total_amount: number
+}
+
+type BloodInventoryChartProps = {
+  redBlood: InventoryItem[]
+  plasma: InventoryItem[]
+  platelets: InventoryItem[]
+}
+
+export default function BloodInventoryChart({ redBlood, plasma, platelets }: BloodInventoryChartProps) {
+  // Process data for chart
+  const bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+
+  // Helper function to find inventory item by blood type and rh
+  const findRedBloodItem = (bloodType: string, rh: string) => {
+    return redBlood.find((item) => item.blood_type === bloodType && item.rh === rh)
+  }
+
+  const findPlasmaItem = (bloodType: string) => {
+    return plasma.find((item) => item.blood_type === bloodType)
+  }
+
+  const findPlateletsItem = (bloodType: string, rh: string) => {
+    return platelets.find((item) => item.blood_type === bloodType && item.rh === rh)
+  }
+
+  // Prepare data for chart
+  const redBloodData = bloodTypes.map((type) => {
+    const [bloodType, rh] = type.split("")
+    const item = findRedBloodItem(bloodType, rh)
+    return item ? Number(item.total_amount) : 0
+  })
+
+  const plasmaData = bloodTypes.map((type) => {
+    const [bloodType] = type.split("")
+    const item = findPlasmaItem(bloodType)
+    return item ? Number(item.total_amount) : 0
+  })
+
+  const plateletsData = bloodTypes.map((type) => {
+    const [bloodType, rh] = type.split("")
+    const item = findPlateletsItem(bloodType, rh)
+    return item ? Number(item.total_amount) : 0
+  })
+
+  // Chart data
+  const data = {
+    labels: bloodTypes,
+    datasets: [
+      {
+        label: "Red Blood Cells (ml)",
+        data: redBloodData,
+        backgroundColor: "rgba(255, 99, 132, 0.5)",
+        borderColor: "rgba(255, 99, 132, 1)",
+        borderWidth: 1,
+      },
+      {
+        label: "Plasma (ml)",
+        data: plasmaData,
+        backgroundColor: "rgba(255, 206, 86, 0.5)",
+        borderColor: "rgba(255, 206, 86, 1)",
+        borderWidth: 1,
+      },
+      {
+        label: "Platelets (ml)",
+        data: plateletsData,
+        backgroundColor: "rgba(54, 162, 235, 0.5)",
+        borderColor: "rgba(54, 162, 235, 1)",
+        borderWidth: 1,
+      },
+    ],
+  }
+
+  // Chart options
+  const options = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "Blood Inventory by Type",
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: "Amount (ml)",
+        },
+      },
+    },
+  }
+
+  return (
+    <div className="w-full h-96 bg-white p-4 rounded-lg shadow">
+      <Bar data={data} options={options} />
+    </div>
+  )
+}
