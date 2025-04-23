@@ -16,6 +16,27 @@ type InventoryTableProps = {
 }
 
 export default function InventoryTable({ title, inventory, showRh = false }: InventoryTableProps) {
+  // Sort inventory by blood type (A, B, AB, O) and then by Rh factor (+ then -)
+  const sortedInventory = [...inventory].sort((a, b) => {
+    // First sort by blood type
+    if (a.blood_type !== b.blood_type) {
+      // Custom sort order: O, A, B, AB
+      const typeOrder = { O: 1, A: 2, B: 3, AB: 4 }
+      return (
+        (typeOrder[a.blood_type as keyof typeof typeOrder] || 99) -
+        (typeOrder[b.blood_type as keyof typeof typeOrder] || 99)
+      )
+    }
+
+    // Then sort by Rh factor if blood types are the same
+    if (showRh && a.rh && b.rh) {
+      // + comes before -
+      return a.rh === "+" ? -1 : 1
+    }
+
+    return 0
+  })
+
   return (
     <div className="bg-white rounded-lg shadow">
       <div className="p-4 border-b">
@@ -30,14 +51,14 @@ export default function InventoryTable({ title, inventory, showRh = false }: Inv
           </TableRow>
         </TableHeader>
         <TableBody>
-          {inventory.length === 0 ? (
+          {sortedInventory.length === 0 ? (
             <TableRow>
               <TableCell colSpan={3} className="text-center text-muted-foreground">
                 No inventory data available
               </TableCell>
             </TableRow>
           ) : (
-            inventory.map((item, index) => (
+            sortedInventory.map((item, index) => (
               <TableRow key={index}>
                 <TableCell>
                   <Badge className={getBloodTypeColor(item.blood_type, item.rh)}>

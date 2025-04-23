@@ -43,3 +43,18 @@ export function getBloodTypeColor(bloodType: string, rh?: string) {
 
   return colorMap[fullType] || "bg-gray-100 text-gray-800"
 }
+
+// Parse blood type and Rh from a combined string
+export function parseBloodType(fullType: string): { bloodType: string; rh: string } {
+  if (fullType.startsWith("AB")) {
+    return {
+      bloodType: "AB",
+      rh: fullType.substring(2) || "", // Get the + or - after AB
+    }
+  } else {
+    return {
+      bloodType: fullType.charAt(0), // A, B, or O
+      rh: fullType.substring(1) || "", // Get the + or - after the blood type
+    }
+  }
+}

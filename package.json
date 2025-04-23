@@ -60,6 +60,7 @@
     "zod": "^3.24.1",
     "chart.js": "latest",
     "@neondatabase/serverless": "latest",
+    "nprogress": "latest",
     "react-chartjs-2": "latest"
   },
   "devDependencies": {

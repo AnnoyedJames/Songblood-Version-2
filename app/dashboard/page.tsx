@@ -10,21 +10,24 @@ import Header from "@/components/header"
 import BloodInventoryChart from "@/components/blood-inventory-chart"
 import InventoryTable from "@/components/inventory-table"
 import SurplusAlerts from "@/components/surplus-alerts"
+import { Suspense } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default async function DashboardPage() {
   const session = await requireAuth()
   const { hospitalId } = session
 
   // Fetch hospital data
-  const hospital = await getHospitalById(hospitalId)
+  const hospitalPromise = getHospitalById(hospitalId)
 
-  // Fetch inventory data
-  const redBlood = await getBloodInventory(hospitalId)
-  const plasma = await getPlasmaInventory(hospitalId)
-  const platelets = await getPlateletsInventory(hospitalId)
-
-  // Fetch surplus alerts
-  const alerts = await getSurplusAlerts(hospitalId)
+  // Parallel data fetching for better performance
+  const [hospital, redBlood, plasma, platelets, alerts] = await Promise.all([
+    hospitalPromise,
+    getBloodInventory(hospitalId),
+    getPlasmaInventory(hospitalId),
+    getPlateletsInventory(hospitalId),
+    getSurplusAlerts(hospitalId),
+  ])
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -67,19 +70,29 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 lg:grid-cols-3 mb-8">
           <div className="lg:col-span-2">
-            <BloodInventoryChart redBlood={redBlood} plasma={plasma} platelets={platelets} />
+            <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+              <BloodInventoryChart redBlood={redBlood} plasma={plasma} platelets={platelets} />
+            </Suspense>
           </div>
           <div>
-            <SurplusAlerts alerts={alerts} />
+            <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+              <SurplusAlerts alerts={alerts} />
+            </Suspense>
           </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <InventoryTable title="Red Blood Cell Inventory" inventory={redBlood} showRh={true} />
+          <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
+            <InventoryTable title="Red Blood Cell Inventory" inventory={redBlood} showRh={true} />
+          </Suspense>
 
-          <InventoryTable title="Plasma Inventory" inventory={plasma} />
+          <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
+            <InventoryTable title="Plasma Inventory" inventory={plasma} />
+          </Suspense>
 
-          <InventoryTable title="Platelets Inventory" inventory={platelets} showRh={true} />
+          <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
+            <InventoryTable title="Platelets Inventory" inventory={platelets} showRh={true} />
+          </Suspense>
         </div>
       </main>
     </div>

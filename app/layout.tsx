@@ -3,6 +3,7 @@ import "./globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
+import ProgressBar from "@/components/progress-bar"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} min-h-screen bg-gray-50`}>
         <ThemeProvider attribute="class" defaultTheme="light">
+          <ProgressBar />
           {children}
         </ThemeProvider>
       </body>

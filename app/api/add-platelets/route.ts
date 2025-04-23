@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { addNewPlateletsBag } from "@/lib/db"
 import { cookies } from "next/headers"
+import { queryCache } from "@/lib/cache"
 
 export async function POST(request: Request) {
   try {
@@ -44,6 +45,9 @@ export async function POST(request: Request) {
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 })
     }
+
+    // Invalidate relevant caches
+    queryCache.invalidate(`platelets:${hospitalId}`)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

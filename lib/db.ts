@@ -1,13 +1,26 @@
 import { neon } from "@neondatabase/serverless"
+import { queryCache } from "./cache"
 
 // Create a SQL client with the connection string
 export const sql = neon(process.env.DATABASE_URL!)
 
 // Helper function to get hospital data by ID
 export async function getHospitalById(hospitalId: number) {
+  const cacheKey = `hospital:${hospitalId}`
+  const cached = queryCache.get(cacheKey)
+
+  if (cached) {
+    return cached
+  }
+
   const result = await sql`
     SELECT * FROM hospital WHERE hospital_id = ${hospitalId}
   `
+
+  if (result[0]) {
+    queryCache.set(cacheKey, result[0])
+  }
+
   return result[0]
 }
 
@@ -22,6 +35,13 @@ export async function verifyAdminCredentials(username: string, password: string)
 
 // Helper function to get blood inventory for a hospital
 export async function getBloodInventory(hospitalId: number) {
+  const cacheKey = `redblood:${hospitalId}`
+  const cached = queryCache.get<any[]>(cacheKey)
+
+  if (cached) {
+    return cached
+  }
+
   const redBlood = await sql`
     SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
     FROM redblood_inventory
@@ -30,11 +50,19 @@ export async function getBloodInventory(hospitalId: number) {
     ORDER BY blood_type, rh
   `
 
+  queryCache.set(cacheKey, redBlood)
   return redBlood
 }
 
 // Helper function to get plasma inventory for a hospital
 export async function getPlasmaInventory(hospitalId: number) {
+  const cacheKey = `plasma:${hospitalId}`
+  const cached = queryCache.get<any[]>(cacheKey)
+
+  if (cached) {
+    return cached
+  }
+
   const plasma = await sql`
     SELECT blood_type, COUNT(*) as count, SUM(amount) as total_amount
     FROM plasma_inventory
@@ -43,11 +71,19 @@ export async function getPlasmaInventory(hospitalId: number) {
     ORDER BY blood_type
   `
 
+  queryCache.set(cacheKey, plasma)
   return plasma
 }
 
 // Helper function to get platelets inventory for a hospital
 export async function getPlateletsInventory(hospitalId: number) {
+  const cacheKey = `platelets:${hospitalId}`
+  const cached = queryCache.get<any[]>(cacheKey)
+
+  if (cached) {
+    return cached
+  }
+
   const platelets = await sql`
     SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
     FROM platelets_inventory
@@ -56,11 +92,13 @@ export async function getPlateletsInventory(hospitalId: number) {
     ORDER BY blood_type, rh
   `
 
+  queryCache.set(cacheKey, platelets)
   return platelets
 }
 
 // Helper function to get surplus alerts
 export async function getSurplusAlerts(hospitalId: number) {
+  // This function is more complex and dynamic, so we won't cache it
   // Get current hospital's inventory
   const currentHospitalInventory = await sql`
     SELECT 'RedBlood' as type, blood_type, rh, COUNT(*) as count
@@ -237,6 +275,8 @@ export async function addNewPlasmaBag(
         ${adminPassword}
       )
     `
+    // Invalidate relevant caches
+    queryCache.invalidate(`plasma:${hospitalId}`)
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -267,6 +307,8 @@ export async function addNewPlateletsBag(
         ${adminPassword}
       )
     `
+    // Invalidate relevant caches
+    queryCache.invalidate(`platelets:${hospitalId}`)
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
