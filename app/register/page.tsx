@@ -1,19 +1,13 @@
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import LoginForm from "./login-form"
+import RegisterForm from "./register-form"
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: { registered?: string }
-}) {
+export default async function RegisterPage() {
   const session = await getSession()
 
   if (session) {
     redirect("/dashboard")
   }
-
-  const justRegistered = searchParams.registered === "true"
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -24,21 +18,8 @@ export default async function LoginPage({
           </div>
           <h1 className="mt-4 text-3xl font-bold">Songblood</h1>
           <p className="mt-2 text-gray-600">Hospital Blood Inventory Management</p>
-          {justRegistered && (
-            <div className="mt-4 p-2 bg-green-50 text-green-700 rounded-md">
-              Registration successful! Please log in with your new credentials.
-            </div>
-          )}
         </div>
-        <LoginForm />
-        <div className="mt-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Need an account?{" "}
-            <a href="/register" className="text-primary hover:underline">
-              Register here
-            </a>
-          </p>
-        </div>
+        <RegisterForm />
       </div>
     </div>
   )

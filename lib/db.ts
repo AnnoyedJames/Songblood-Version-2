@@ -635,3 +635,63 @@ export async function checkDatabaseConnection() {
 export function isFallbackMode() {
   return IS_FALLBACK_MODE
 }
+
+// Add this function to the existing db.ts file
+export async function registerAdmin(username: string, password: string, hospitalId: number) {
+  // Check if we're in fallback mode
+  if (IS_FALLBACK_MODE) {
+    // In fallback mode, simulate registration
+    const existingAdmin = FALLBACK_DATA.admins.find((a) => a.admin_username === username)
+    if (existingAdmin) {
+      return { success: false, error: "Username already exists" }
+    }
+
+    // Add to fallback data (this won't persist across server restarts)
+    const newAdminId = FALLBACK_DATA.admins.length + 1
+    FALLBACK_DATA.admins.push({
+      admin_id: newAdminId,
+      admin_username: username,
+      admin_password: password,
+      hospital_id: hospitalId,
+    })
+
+    return { success: true }
+  }
+
+  try {
+    // First check if the hospital exists
+    const hospitalCheck = await sql`
+      SELECT hospital_id FROM hospital WHERE hospital_id = ${hospitalId}
+    `
+
+    if (hospitalCheck.length === 0) {
+      return { success: false, error: "Hospital not found" }
+    }
+
+    // Check if username already exists
+    const usernameCheck = await sql`
+      SELECT admin_id FROM admin WHERE admin_username = ${username}
+    `
+
+    if (usernameCheck.length > 0) {
+      return { success: false, error: "Username already exists" }
+    }
+
+    // Insert new admin
+    const result = await sql`
+      INSERT INTO admin (admin_username, admin_password, hospital_id)
+      VALUES (${username}, ${password}, ${hospitalId})
+      RETURNING admin_id
+    `
+
+    if (result.length > 0) {
+      return { success: true }
+    } else {
+      return { success: false, error: "Failed to create admin account" }
+    }
+  } catch (error) {
+    console.error("Error registering admin:", error)
+    IS_FALLBACK_MODE = true
+    return { success: false, error: "Database error" }
+  }
+}

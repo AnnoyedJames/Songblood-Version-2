@@ -10,38 +10,51 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import Link from "next/link"
 
-export default function LoginForm() {
+export default function RegisterForm() {
   const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [hospitalId, setHospitalId] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+
+    // Basic validation
+    if (password !== confirmPassword) {
+      setError("Passwords do not match")
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/login", {
+      const response = await fetch("/api/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({
+          username,
+          password,
+          hospitalId: Number.parseInt(hospitalId, 10),
+        }),
       })
 
       const data = await response.json()
 
       if (data.success) {
-        router.push("/dashboard")
-        router.refresh()
+        router.push("/login?registered=true")
       } else {
-        setError(data.error || "Login failed. Please check your credentials and try again.")
+        setError(data.error || "Registration failed. Please try again.")
       }
     } catch (err) {
-      console.error("Login error:", err)
+      console.error("Registration error:", err)
       setError("Connection error. Please try again later.")
     } finally {
       setIsLoading(false)
@@ -51,8 +64,8 @@ export default function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Admin Login</CardTitle>
-        <CardDescription>Enter your credentials to access the admin portal</CardDescription>
+        <CardTitle>Register Admin Account</CardTitle>
+        <CardDescription>Create a new admin account for your hospital</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
@@ -64,14 +77,7 @@ export default function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoComplete="username"
-            />
+            <Input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
@@ -81,16 +87,40 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete="current-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hospitalId">Hospital ID</Label>
+            <Input
+              id="hospitalId"
+              type="number"
+              value={hospitalId}
+              onChange={(e) => setHospitalId(e.target.value)}
+              required
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Logging in..." : "Login"}
+            {isLoading ? "Registering..." : "Register"}
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="text-center">
-        <p className="text-sm text-muted-foreground">Example: Username: Panya, Password: P9aDhR8e</p>
+      <CardFooter className="flex justify-center">
+        <p className="text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/login" className="text-primary hover:underline">
+            Login
+          </Link>
+        </p>
       </CardFooter>
     </Card>
   )
