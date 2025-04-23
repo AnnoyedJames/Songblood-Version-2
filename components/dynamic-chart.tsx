@@ -28,15 +28,18 @@ export default function DynamicChart({ redBlood, plasma, platelets }: DynamicCha
     // Parse blood type and rh from the full type
     let bloodType, rh
 
-    if (fullType.startsWith("AB")) {
-      bloodType = "AB"
-      rh = fullType.substring(2) // Get the + or - after AB
-    } else {
-      bloodType = fullType.charAt(0) // A, B, or O
-      rh = fullType.substring(1) // Get the + or - after the blood type
-    }
+    if (fullType.includes("+") || fullType.includes("-")) {
+      if (fullType.startsWith("AB")) {
+        bloodType = "AB"
+        rh = fullType.substring(2) // Get the + or - after AB
+      } else {
+        bloodType = fullType.charAt(0) // A, B, or O
+        rh = fullType.substring(1) // Get the + or - after the blood type
+      }
 
-    return redBlood.find((item) => item.blood_type === bloodType && item.rh === rh)
+      return redBlood.find((item) => item.blood_type === bloodType && item.rh === rh)
+    }
+    return null
   }
 
   const findPlasmaItem = (fullType: string) => {
@@ -56,15 +59,18 @@ export default function DynamicChart({ redBlood, plasma, platelets }: DynamicCha
     // Parse blood type and rh from the full type
     let bloodType, rh
 
-    if (fullType.startsWith("AB")) {
-      bloodType = "AB"
-      rh = fullType.substring(2) // Get the + or - after AB
-    } else {
-      bloodType = fullType.charAt(0) // A, B, or O
-      rh = fullType.substring(1) // Get the + or - after the blood type
-    }
+    if (fullType.includes("+") || fullType.includes("-")) {
+      if (fullType.startsWith("AB")) {
+        bloodType = "AB"
+        rh = fullType.substring(2) // Get the + or - after AB
+      } else {
+        bloodType = fullType.charAt(0) // A, B, or O
+        rh = fullType.substring(1) // Get the + or - after the blood type
+      }
 
-    return platelets.find((item) => item.blood_type === bloodType && item.rh === rh)
+      return platelets.find((item) => item.blood_type === bloodType && item.rh === rh)
+    }
+    return null
   }
 
   // Prepare data for chart

@@ -21,13 +21,11 @@ const FALLBACK_DATA = {
       hospital_contact_mail: "info@sirirajhospital.com",
       hospital_contact_phone: "02-419-7000",
     },
-    // Add more sample hospitals if needed
   ],
   admins: [
     { admin_id: 1, admin_username: "Panya", admin_password: "P9aDhR8e", hospital_id: 1 },
     { admin_id: 2, admin_username: "Manasnan", admin_password: "M7nA7sL1k", hospital_id: 2 },
     { admin_id: 3, admin_username: "demo", admin_password: "demo", hospital_id: 1 },
-    // Add more sample admins if needed
   ],
 }
 
@@ -114,13 +112,15 @@ export async function verifyAdminCredentials(username: string, password: string)
 // Helper function to get blood inventory for a hospital
 export async function getBloodInventory(hospitalId: number) {
   if (IS_FALLBACK_MODE) {
-    // Return sample inventory data in fallback mode
+    // Return sample inventory data in fallback mode with all blood types represented
     return [
       { blood_type: "A", rh: "+", count: 5, total_amount: 2250 },
-      { blood_type: "B", rh: "+", count: 3, total_amount: 1350 },
-      { blood_type: "AB", rh: "+", count: 2, total_amount: 900 },
-      { blood_type: "O", rh: "+", count: 7, total_amount: 3150 },
       { blood_type: "A", rh: "-", count: 1, total_amount: 450 },
+      { blood_type: "B", rh: "+", count: 3, total_amount: 1350 },
+      { blood_type: "B", rh: "-", count: 1, total_amount: 450 },
+      { blood_type: "AB", rh: "+", count: 2, total_amount: 900 },
+      { blood_type: "AB", rh: "-", count: 1, total_amount: 450 },
+      { blood_type: "O", rh: "+", count: 7, total_amount: 3150 },
       { blood_type: "O", rh: "-", count: 2, total_amount: 900 },
     ]
   }
@@ -161,7 +161,7 @@ export async function getBloodInventory(hospitalId: number) {
 // Helper function to get plasma inventory for a hospital
 export async function getPlasmaInventory(hospitalId: number) {
   if (IS_FALLBACK_MODE) {
-    // Return sample plasma data in fallback mode
+    // Return sample plasma data in fallback mode with all blood types
     return [
       { blood_type: "A", count: 4, total_amount: 1000 },
       { blood_type: "B", count: 3, total_amount: 750 },
@@ -204,13 +204,15 @@ export async function getPlasmaInventory(hospitalId: number) {
 // Helper function to get platelets inventory for a hospital
 export async function getPlateletsInventory(hospitalId: number) {
   if (IS_FALLBACK_MODE) {
-    // Return sample platelets data in fallback mode
+    // Return sample platelets data in fallback mode with all blood types
     return [
       { blood_type: "A", rh: "+", count: 3, total_amount: 750 },
-      { blood_type: "B", rh: "+", count: 2, total_amount: 500 },
-      { blood_type: "AB", rh: "+", count: 1, total_amount: 250 },
-      { blood_type: "O", rh: "+", count: 4, total_amount: 1000 },
       { blood_type: "A", rh: "-", count: 1, total_amount: 250 },
+      { blood_type: "B", rh: "+", count: 2, total_amount: 500 },
+      { blood_type: "B", rh: "-", count: 1, total_amount: 250 },
+      { blood_type: "AB", rh: "+", count: 1, total_amount: 250 },
+      { blood_type: "AB", rh: "-", count: 1, total_amount: 250 },
+      { blood_type: "O", rh: "+", count: 4, total_amount: 1000 },
       { blood_type: "O", rh: "-", count: 1, total_amount: 250 },
     ]
   }

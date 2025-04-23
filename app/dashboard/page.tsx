@@ -29,6 +29,16 @@ export default async function DashboardPage() {
     getSurplusAlerts(hospitalId),
   ])
 
+  // Calculate accurate totals using Number() to ensure proper conversion
+  const redBloodUnits = redBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
+  const redBloodAmount = redBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+
+  const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
+  const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+
+  const plateletsUnits = platelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
+  const plateletsAmount = platelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header hospitalId={hospitalId} />
@@ -39,32 +49,20 @@ export default async function DashboardPage() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-medium mb-2">Red Blood Cells</h2>
-            <div className="text-3xl font-bold text-red-600">
-              {redBlood.reduce((sum, item) => sum + Number(item.count), 0)} units
-            </div>
-            <p className="text-muted-foreground">
-              {redBlood.reduce((sum, item) => sum + Number(item.total_amount), 0).toLocaleString()} ml total
-            </p>
+            <div className="text-3xl font-bold text-red-600">{redBloodUnits} units</div>
+            <p className="text-muted-foreground">{redBloodAmount.toLocaleString()} ml total</p>
           </div>
 
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-medium mb-2">Plasma</h2>
-            <div className="text-3xl font-bold text-amber-600">
-              {plasma.reduce((sum, item) => sum + Number(item.count), 0)} units
-            </div>
-            <p className="text-muted-foreground">
-              {plasma.reduce((sum, item) => sum + Number(item.total_amount), 0).toLocaleString()} ml total
-            </p>
+            <div className="text-3xl font-bold text-amber-600">{plasmaUnits} units</div>
+            <p className="text-muted-foreground">{plasmaAmount.toLocaleString()} ml total</p>
           </div>
 
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-lg font-medium mb-2">Platelets</h2>
-            <div className="text-3xl font-bold text-blue-600">
-              {platelets.reduce((sum, item) => sum + Number(item.count), 0)} units
-            </div>
-            <p className="text-muted-foreground">
-              {platelets.reduce((sum, item) => sum + Number(item.total_amount), 0).toLocaleString()} ml total
-            </p>
+            <div className="text-3xl font-bold text-blue-600">{plateletsUnits} units</div>
+            <p className="text-muted-foreground">{plateletsAmount.toLocaleString()} ml total</p>
           </div>
         </div>
 

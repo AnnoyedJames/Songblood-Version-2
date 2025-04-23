@@ -16,8 +16,17 @@ type InventoryTableProps = {
 }
 
 export default function InventoryTable({ title, inventory, showRh = false }: InventoryTableProps) {
+  // Ensure inventory data is valid
+  const validInventory = inventory.filter(
+    (item) =>
+      item &&
+      item.blood_type &&
+      (typeof item.count === "number" || typeof item.count === "string") &&
+      (typeof item.total_amount === "number" || typeof item.total_amount === "string"),
+  )
+
   // Sort inventory by blood type (A, B, AB, O) and then by Rh factor (+ then -)
-  const sortedInventory = [...inventory].sort((a, b) => {
+  const sortedInventory = [...validInventory].sort((a, b) => {
     // First sort by blood type
     if (a.blood_type !== b.blood_type) {
       // Custom sort order: O, A, B, AB
@@ -37,10 +46,17 @@ export default function InventoryTable({ title, inventory, showRh = false }: Inv
     return 0
   })
 
+  // Calculate total units and amount
+  const totalUnits = sortedInventory.reduce((sum, item) => sum + Number(item.count || 0), 0)
+  const totalAmount = sortedInventory.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+
   return (
     <div className="bg-white rounded-lg shadow">
       <div className="p-4 border-b">
         <h3 className="text-lg font-medium">{title}</h3>
+        <div className="text-sm text-muted-foreground">
+          Total: {totalUnits} units ({totalAmount.toLocaleString()} ml)
+        </div>
       </div>
       <Table>
         <TableHeader>
@@ -65,8 +81,8 @@ export default function InventoryTable({ title, inventory, showRh = false }: Inv
                     {formatBloodType(item.blood_type, showRh ? item.rh : undefined)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">{item.count}</TableCell>
-                <TableCell className="text-right">{item.total_amount} ml</TableCell>
+                <TableCell className="text-right">{Number(item.count).toLocaleString()}</TableCell>
+                <TableCell className="text-right">{Number(item.total_amount).toLocaleString()} ml</TableCell>
               </TableRow>
             ))
           )}

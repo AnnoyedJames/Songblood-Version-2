@@ -16,6 +16,8 @@ export function formatDate(date: string | Date) {
 
 // Format blood type with Rh factor
 export function formatBloodType(bloodType: string, rh?: string) {
+  if (!bloodType) return "Unknown"
+
   if (!rh || rh === "") {
     return bloodType
   }
@@ -24,6 +26,8 @@ export function formatBloodType(bloodType: string, rh?: string) {
 
 // Get color for blood type
 export function getBloodTypeColor(bloodType: string, rh?: string) {
+  if (!bloodType) return "bg-gray-100 text-gray-800"
+
   const fullType = formatBloodType(bloodType, rh)
 
   const colorMap: Record<string, string> = {
@@ -46,6 +50,8 @@ export function getBloodTypeColor(bloodType: string, rh?: string) {
 
 // Parse blood type and Rh from a combined string
 export function parseBloodType(fullType: string): { bloodType: string; rh: string } {
+  if (!fullType) return { bloodType: "Unknown", rh: "" }
+
   if (fullType.startsWith("AB")) {
     return {
       bloodType: "AB",
