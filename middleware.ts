@@ -15,7 +15,10 @@ export function middleware(request: NextRequest) {
   // Redirect logic
   if (!isAuthenticated && !isPublicPath) {
     // Redirect to login if trying to access protected route without authentication
-    return NextResponse.redirect(new URL("/login", request.url))
+    const url = new URL("/login", request.url)
+    // Add a redirect reason to help with debugging
+    url.searchParams.set("reason", "unauthenticated")
+    return NextResponse.redirect(url)
   }
 
   if (isAuthenticated && isPublicPath) {

@@ -11,7 +11,14 @@ type HeaderProps = {
 }
 
 export default async function Header({ hospitalId }: HeaderProps) {
-  const hospital = await getHospitalById(hospitalId)
+  // Wrap in try-catch to handle any errors
+  let hospital
+  try {
+    hospital = await getHospitalById(hospitalId)
+  } catch (error) {
+    console.error("Error fetching hospital:", error)
+    hospital = { hospital_name: "Hospital" }
+  }
 
   return (
     <>
@@ -26,7 +33,9 @@ export default async function Header({ hospitalId }: HeaderProps) {
               <span className="font-bold text-xl hidden md:inline-block">Songblood</span>
             </Link>
             <span className="text-muted-foreground hidden md:inline-block">|</span>
-            <span className="text-sm md:text-base truncate max-w-[200px] md:max-w-none">{hospital?.hospital_name}</span>
+            <span className="text-sm md:text-base truncate max-w-[200px] md:max-w-none">
+              {hospital?.hospital_name || "Hospital"}
+            </span>
           </div>
 
           <div className="md:hidden">

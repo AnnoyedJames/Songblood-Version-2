@@ -17,9 +17,33 @@ export default function FallbackLogin() {
     setError("")
 
     try {
-      // Create a session directly in the browser
+      // Try to use the API first
+      try {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username: "demo", password: "demo" }),
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          router.push("/dashboard")
+          router.refresh()
+          return
+        }
+      } catch (apiError) {
+        console.error("API login failed, falling back to direct cookie:", apiError)
+      }
+
+      // If API fails, create a session directly in the browser
       document.cookie = `adminId=1; path=/; max-age=${24 * 60 * 60}`
       document.cookie = `hospitalId=1; path=/; max-age=${24 * 60 * 60}`
+      document.cookie = `fallbackMode=true; path=/; max-age=${24 * 60 * 60}`
+      document.cookie = `adminUsername=demo; path=/; max-age=${24 * 60 * 60}`
+      document.cookie = `adminPassword=demo; path=/; max-age=${24 * 60 * 60}`
 
       // Redirect to dashboard
       router.push("/dashboard")

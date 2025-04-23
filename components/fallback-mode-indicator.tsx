@@ -8,10 +8,16 @@ export default function FallbackModeIndicator() {
   const [isFallbackMode, setIsFallbackMode] = useState(false)
 
   useEffect(() => {
-    // Check if we're in fallback mode by looking at the cookie
-    const cookies = document.cookie.split(";")
-    const fallbackModeCookie = cookies.find((cookie) => cookie.trim().startsWith("fallbackMode="))
-    setIsFallbackMode(fallbackModeCookie !== undefined)
+    try {
+      // Check if we're in fallback mode by looking at the cookie
+      const cookies = document.cookie.split(";")
+      const fallbackModeCookie = cookies.find((cookie) => cookie.trim().startsWith("fallbackMode="))
+      setIsFallbackMode(fallbackModeCookie !== undefined)
+    } catch (error) {
+      console.error("Error checking fallback mode:", error)
+      // If there's an error, assume we're in fallback mode
+      setIsFallbackMode(true)
+    }
   }, [])
 
   if (!isFallbackMode) {

@@ -20,6 +20,19 @@ export default function LoginForm() {
   const [isServerError, setIsServerError] = useState(false)
   const [isFallbackMode, setIsFallbackMode] = useState(false)
   const [connectionChecked, setConnectionChecked] = useState(false)
+  const [redirectReason, setRedirectReason] = useState<string | null>(null)
+
+  // Check for redirect reason in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const reason = urlParams.get("reason")
+    if (reason) {
+      setRedirectReason(reason)
+      if (reason === "unauthenticated" || reason === "no-session") {
+        setError("Your session has expired. Please log in again.")
+      }
+    }
+  }, [])
 
   // Check database connection on component mount
   useEffect(() => {
@@ -86,6 +99,17 @@ export default function LoginForm() {
         <CardDescription>Enter your credentials to access the admin portal</CardDescription>
       </CardHeader>
       <CardContent>
+        {redirectReason && (
+          <Alert className="mb-4 bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-500" />
+            <AlertDescription className="text-blue-700">
+              {redirectReason === "unauthenticated"
+                ? "You need to log in to access that page."
+                : "Your session has expired. Please log in again."}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {isFallbackMode && connectionChecked && (
           <Alert className="mb-4 bg-amber-50 border-amber-200">
             <Info className="h-4 w-4 text-amber-500" />
