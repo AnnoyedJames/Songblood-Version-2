@@ -1,18 +1,23 @@
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 import { verifyAdminCredentials, isFallbackMode } from "./db"
 
 // Session management
 export async function createSession(adminId: number, hospitalId: number) {
-  const oneDay = 24 * 60 * 60 * 1000
-  cookies().set("adminId", adminId.toString(), { httpOnly: true, maxAge: oneDay })
-  cookies().set("hospitalId", hospitalId.toString(), { httpOnly: true, maxAge: oneDay })
-  cookies().set("adminUsername", "demo", { httpOnly: true, maxAge: oneDay }) // Add for fallback mode
-  cookies().set("adminPassword", "demo", { httpOnly: true, maxAge: oneDay }) // Add for fallback mode
+  try {
+    const oneDay = 24 * 60 * 60 * 1000
+    cookies().set("adminId", adminId.toString(), { httpOnly: true, maxAge: oneDay })
+    cookies().set("hospitalId", hospitalId.toString(), { httpOnly: true, maxAge: oneDay })
+    cookies().set("adminUsername", "demo", { httpOnly: true, maxAge: oneDay }) // Add for fallback mode
+    cookies().set("adminPassword", "demo", { httpOnly: true, maxAge: oneDay }) // Add for fallback mode
 
-  // Store fallback mode status in cookie
-  if (isFallbackMode()) {
-    cookies().set("fallbackMode", "true", { httpOnly: true, maxAge: oneDay })
+    // Store fallback mode status in cookie
+    if (isFallbackMode()) {
+      cookies().set("fallbackMode", "true", { httpOnly: true, maxAge: oneDay })
+    }
+    return true
+  } catch (error) {
+    console.error("Error creating session:", error)
+    return false
   }
 }
 
@@ -43,8 +48,10 @@ export async function clearSession() {
     cookies().delete("fallbackMode")
     cookies().delete("adminUsername")
     cookies().delete("adminPassword")
+    return true
   } catch (error) {
     console.error("Error clearing session:", error)
+    return false
   }
 }
 
@@ -54,29 +61,15 @@ export async function requireAuth() {
     const session = await getSession()
 
     if (!session) {
-      // Instead of redirecting, we'll create a demo session in fallback mode
-      if (isFallbackMode()) {
-        await createSession(1, 1) // Create a demo session
-        const newSession = await getSession()
-        if (newSession) {
-          return newSession
-        }
-      }
-
-      // If we still don't have a session, redirect to login
-      redirect("/login?reason=no-session")
+      // Instead of redirecting, we'll return null
+      // The calling component should handle this case
+      return null
     }
 
     return session
   } catch (error) {
     console.error("Authentication error:", error)
-    // If there's an error, create a fallback session
-    await createSession(1, 1)
-    return {
-      adminId: 1,
-      hospitalId: 1,
-      fallbackMode: true,
-    }
+    return null
   }
 }
 
@@ -89,7 +82,15 @@ export async function login(username: string, password: string) {
       return { success: false, error: "Invalid credentials", fallbackMode: isFallbackMode() }
     }
 
-    await createSession(admin.admin_id, admin.hospital_id)
+    const sessionCreated = await createSession(admin.admin_id, admin.hospital_id)
+
+    if (!sessionCreated) {
+      return {
+        success: false,
+        error: "Failed to create session",
+        fallbackMode: isFallbackMode(),
+      }
+    }
 
     // Store credentials for API calls
     cookies().set("adminUsername", username, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
@@ -115,5 +116,5 @@ export async function login(username: string, password: string) {
 
 // Logout function
 export async function logout() {
-  await clearSession()
+  return await clearSession()
 }

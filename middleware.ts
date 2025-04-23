@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Define public paths that don't require authentication
-  const isPublicPath = path === "/login"
+  const isPublicPath = path === "/login" || path === "/"
 
   // Get authentication status from cookies
   const adminId = request.cookies.get("adminId")?.value
@@ -21,7 +21,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (isAuthenticated && isPublicPath) {
+  if (isAuthenticated && path === "/login") {
     // Redirect to dashboard if already authenticated and trying to access login
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }

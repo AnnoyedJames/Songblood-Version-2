@@ -12,11 +12,18 @@ import InventoryTable from "@/components/inventory-table"
 import SurplusAlerts from "@/components/surplus-alerts"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { redirect } from "next/navigation"
 
 export default async function DashboardPage() {
   // Wrap in try-catch to handle any errors
   try {
     const session = await requireAuth()
+
+    // If no session, redirect to login
+    if (!session) {
+      redirect("/login?reason=no-session")
+    }
+
     const { hospitalId } = session
 
     // Fetch hospital data
@@ -109,6 +116,12 @@ export default async function DashboardPage() {
     )
   } catch (error) {
     console.error("Dashboard error:", error)
+
+    // If the error is a redirect, let it happen
+    if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
+      throw error
+    }
+
     // Return a simple error message instead of redirecting
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
