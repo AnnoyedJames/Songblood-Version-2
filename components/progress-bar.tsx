@@ -48,6 +48,8 @@ export default function ProgressBar() {
   }, [])
 
   useEffect(() => {
+    if (!searchParams) return // Guard against undefined searchParams
+
     const currentSearchParams = searchParams.toString()
 
     // Only trigger progress bar when the path or search params change

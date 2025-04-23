@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import LoginForm from "./login-form"
+import FallbackLogin from "./fallback-login"
 
 export default async function LoginPage() {
   const session = await getSession()
@@ -20,6 +21,7 @@ export default async function LoginPage() {
           <p className="mt-2 text-gray-600">Hospital Blood Inventory Management</p>
         </div>
         <LoginForm />
+        <FallbackLogin />
       </div>
     </div>
   )
