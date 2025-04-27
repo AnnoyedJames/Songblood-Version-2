@@ -59,8 +59,8 @@
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "chart.js": "latest",
-    "nprogress": "latest",
     "react-chartjs-2": "latest",
+    "nprogress": "latest",
     "@neondatabase/serverless": "latest"
   },
   "devDependencies": {

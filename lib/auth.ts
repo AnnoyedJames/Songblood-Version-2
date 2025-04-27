@@ -1,6 +1,15 @@
 import { cookies } from "next/headers"
 import { verifyAdminCredentials, registerAdmin } from "./db"
 
+// Function to determine if we're in fallback mode (e.g., using local storage)
+function isFallbackMode(): boolean {
+  // Check if localStorage is available (client-side only)
+  if (typeof localStorage !== "undefined") {
+    return localStorage.getItem("fallbackMode") === "true"
+  }
+  return false
+}
+
 // Session management
 export async function createSession(adminId: number, hospitalId: number) {
   try {
@@ -61,11 +70,18 @@ export async function login(username: string, password: string) {
 
     const sessionCreated = await createSession(admin.admin_id, admin.hospital_id)
 
+    // Set fallback mode cookie if we're in fallback mode
+    if (isFallbackMode()) {
+      cookies().set("fallbackMode", "true", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
+      cookies().set("adminUsername", username, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
+      cookies().set("adminPassword", password, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
+    }
+
     if (!sessionCreated) {
       return { success: false, error: "Failed to create session" }
     }
 
-    return { success: true }
+    return { success: true, fallbackMode: isFallbackMode() }
   } catch (error: any) {
     console.error("Login error:", error)
     return {

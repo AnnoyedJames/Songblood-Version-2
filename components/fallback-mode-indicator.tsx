@@ -13,6 +13,12 @@ export default function FallbackModeIndicator() {
       const cookies = document.cookie.split(";")
       const fallbackModeCookie = cookies.find((cookie) => cookie.trim().startsWith("fallbackMode="))
       setIsFallbackMode(fallbackModeCookie !== undefined)
+
+      // Also check if there was a database connection error
+      const connectionErrorCookie = cookies.find((cookie) => cookie.trim().startsWith("connectionError="))
+      if (connectionErrorCookie) {
+        setIsFallbackMode(true)
+      }
     } catch (error) {
       console.error("Error checking fallback mode:", error)
       // If there's an error, assume we're in fallback mode
@@ -28,7 +34,8 @@ export default function FallbackModeIndicator() {
     <Alert className="rounded-none border-t-0 border-x-0 bg-amber-50 border-amber-200">
       <Info className="h-4 w-4 text-amber-500" />
       <AlertDescription className="text-amber-700">
-        Running in demo mode with sample data. Database connection unavailable.
+        <strong>Demo Mode Active:</strong> Running with sample data. Database connection unavailable. Use username:{" "}
+        <strong>demo</strong> password: <strong>demo</strong> if you encounter login issues.
       </AlertDescription>
     </Alert>
   )

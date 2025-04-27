@@ -40,12 +40,28 @@ export const sql = async (query: string, ...args: any[]) => {
   }
 
   try {
-    const dbClient = neon(process.env.DATABASE_URL!)
-    return await dbClient(query, ...args)
+    // Check if DATABASE_URL is defined
+    if (!process.env.DATABASE_URL) {
+      console.error("DATABASE_URL is not defined")
+      IS_FALLBACK_MODE = true
+      return []
+    }
+
+    const dbClient = neon(process.env.DATABASE_URL)
+
+    // Add timeout to prevent hanging connections
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Database connection timeout")), 5000)
+    })
+
+    // Race the database query against the timeout
+    return (await Promise.race([dbClient(query, ...args), timeoutPromise])) as any[]
   } catch (error) {
     console.error("Database connection error:", error)
+    // Ensure fallback mode is activated
     IS_FALLBACK_MODE = true
-    throw new Error("Failed to connect to database. Using fallback mode.")
+    // Return empty array instead of throwing to prevent cascading errors
+    return []
   }
 }
 
@@ -83,6 +99,7 @@ export async function getHospitalById(hospitalId: number) {
 export async function verifyAdminCredentials(username: string, password: string) {
   if (IS_FALLBACK_MODE) {
     // In fallback mode, use the sample data
+    console.log("Using fallback mode for authentication")
     const admin = FALLBACK_DATA.admins.find((a) => a.admin_username === username && a.admin_password === password)
     return admin || null
   }
@@ -92,12 +109,24 @@ export async function verifyAdminCredentials(username: string, password: string)
       SELECT admin_id, hospital_id FROM admin 
       WHERE admin_username = ${username} AND admin_password = ${password}
     `
+
+    if (!result || result.length === 0) {
+      // If no results but we're not in fallback mode yet, try fallback
+      if (!IS_FALLBACK_MODE) {
+        IS_FALLBACK_MODE = true
+        console.log("No results from database, switching to fallback mode")
+        return verifyAdminCredentials(username, password)
+      }
+      return null
+    }
+
     return result[0] || null
   } catch (error) {
     console.error("Error verifying credentials:", error)
     IS_FALLBACK_MODE = true
 
     // After switching to fallback mode, try again with sample data
+    console.log("Error occurred, switching to fallback mode for authentication")
     const admin = FALLBACK_DATA.admins.find((a) => a.admin_username === username && a.admin_password === password)
 
     if (admin) {

@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Songblood - Hospital Blood Inventory Management",
   description: "Admin portal for Bangkok hospitals to manage blood inventories",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
