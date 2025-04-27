@@ -2,9 +2,10 @@ import Link from "next/link"
 import { getHospitalById } from "@/lib/db"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { LogOut, Menu } from "lucide-react"
+import { Menu } from "lucide-react"
 import NavLink from "./nav-link"
 import { AppError, ErrorType } from "@/lib/error-handling"
+import { LogoutButton } from "./logout-button"
 
 type HeaderProps = {
   hospitalId: number
@@ -66,12 +67,7 @@ export default async function Header({ hospitalId }: HeaderProps) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <form action="/api/logout" method="POST">
-                  <button className="w-full text-left flex items-center">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                  </button>
-                </form>
+                <LogoutButton mobile={true} />
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -87,12 +83,7 @@ export default async function Header({ hospitalId }: HeaderProps) {
           <NavLink href="/donor-search" activeClassName="text-primary font-semibold">
             Donor Search
           </NavLink>
-          <form action="/api/logout" method="POST">
-            <Button variant="ghost" size="sm" className="gap-1">
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
-          </form>
+          <LogoutButton variant="ghost" size="sm" />
         </nav>
       </div>
     </header>

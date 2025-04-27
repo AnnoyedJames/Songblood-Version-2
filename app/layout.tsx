@@ -4,6 +4,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import ProgressBarWrapper from "@/components/progress-bar-wrapper"
+import { ToastProvider } from "@/components/ui/use-toast"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,8 +23,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} min-h-screen bg-gray-50`}>
         <ThemeProvider attribute="class" defaultTheme="light">
-          <ProgressBarWrapper />
-          {children}
+          <ToastProvider>
+            <ProgressBarWrapper />
+            {children}
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

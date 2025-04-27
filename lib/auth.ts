@@ -39,12 +39,31 @@ export async function getSession() {
   }
 }
 
+// Update the clearSession function to ensure all cookies are properly cleared
 export async function clearSession() {
   try {
-    cookies().delete("adminId")
-    cookies().delete("hospitalId")
-    cookies().delete("adminUsername")
-    cookies().delete("adminPassword")
+    // Clear all authentication-related cookies with proper options
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0, // Expire immediately
+      sameSite: "strict" as const,
+    }
+
+    // Clear all authentication cookies
+    cookies().set("adminId", "", cookieOptions)
+    cookies().set("hospitalId", "", cookieOptions)
+    cookies().set("adminUsername", "", cookieOptions)
+    cookies().set("adminPassword", "", cookieOptions)
+    cookies().set("fallbackMode", "", cookieOptions)
+
+    // Clear any other potential session cookies
+    cookies().set("sessionToken", "", cookieOptions)
+
+    // Log the logout for audit purposes
+    console.log("User session cleared successfully")
+
     return true
   } catch (error) {
     throw logError(error, "Clear Session")
