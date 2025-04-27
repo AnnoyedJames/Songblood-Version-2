@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { formatBloodType, formatDate, getBloodTypeColor } from "@/lib/utils"
 import { Search } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { ErrorType } from "@/lib/error-handling"
 
 type SearchResult = {
   type: string
@@ -28,6 +31,8 @@ export default function DonorSearchForm() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState("")
+  const [errorType, setErrorType] = useState<ErrorType | null>(null)
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -36,6 +41,8 @@ export default function DonorSearchForm() {
 
     setIsLoading(true)
     setSearched(true)
+    setError("")
+    setErrorType(null)
 
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
@@ -45,10 +52,14 @@ export default function DonorSearchForm() {
         setResults(data.results)
       } else {
         setResults([])
+        setError(data.error || "Search failed. Please try again.")
+        setErrorType(data.type || null)
       }
     } catch (err) {
       console.error("Search error:", err)
       setResults([])
+      setError("Connection error. Please try again later.")
+      setErrorType(ErrorType.SERVER)
     } finally {
       setIsLoading(false)
     }
@@ -61,6 +72,13 @@ export default function DonorSearchForm() {
         <CardDescription>Search by donor name or bag ID across all hospitals</CardDescription>
       </CardHeader>
       <CardContent>
+        {error && (
+          <Alert variant={errorType === ErrorType.DATABASE_CONNECTION ? "warning" : "destructive"} className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={handleSearch} className="flex gap-2 mb-6">
           <Input
             placeholder="Enter donor name or bag ID..."
@@ -74,7 +92,7 @@ export default function DonorSearchForm() {
           </Button>
         </form>
 
-        {searched && (
+        {searched && !error && (
           <div>
             <h3 className="text-lg font-medium mb-4">Search Results {results.length > 0 && `(${results.length})`}</h3>
 

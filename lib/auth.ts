@@ -1,25 +1,23 @@
 import { cookies } from "next/headers"
 import { verifyAdminCredentials, registerAdmin } from "./db"
-
-// Function to determine if we're in fallback mode (e.g., using local storage)
-function isFallbackMode(): boolean {
-  // Check if localStorage is available (client-side only)
-  if (typeof localStorage !== "undefined") {
-    return localStorage.getItem("fallbackMode") === "true"
-  }
-  return false
-}
+import { AppError, ErrorType, logError } from "./error-handling"
 
 // Session management
-export async function createSession(adminId: number, hospitalId: number) {
+export async function createSession(adminId: number, hospitalId: number, username?: string, password?: string) {
   try {
     const oneDay = 24 * 60 * 60 * 1000
     cookies().set("adminId", adminId.toString(), { httpOnly: true, maxAge: oneDay })
     cookies().set("hospitalId", hospitalId.toString(), { httpOnly: true, maxAge: oneDay })
+
+    // Store credentials for API calls if provided
+    if (username && password) {
+      cookies().set("adminUsername", username, { httpOnly: true, maxAge: oneDay })
+      cookies().set("adminPassword", password, { httpOnly: true, maxAge: oneDay })
+    }
+
     return true
   } catch (error) {
-    console.error("Error creating session:", error)
-    return false
+    throw logError(error, "Create Session")
   }
 }
 
@@ -37,8 +35,7 @@ export async function getSession() {
       hospitalId: Number(hospitalId),
     }
   } catch (error) {
-    console.error("Error getting session:", error)
-    return null
+    throw logError(error, "Get Session")
   }
 }
 
@@ -46,16 +43,20 @@ export async function clearSession() {
   try {
     cookies().delete("adminId")
     cookies().delete("hospitalId")
+    cookies().delete("adminUsername")
+    cookies().delete("adminPassword")
     return true
   } catch (error) {
-    console.error("Error clearing session:", error)
-    return false
+    throw logError(error, "Clear Session")
   }
 }
 
 // Authentication middleware
 export async function requireAuth() {
   const session = await getSession()
+  if (!session) {
+    throw new AppError(ErrorType.AUTHENTICATION, "Authentication required")
+  }
   return session
 }
 
@@ -65,29 +66,24 @@ export async function login(username: string, password: string) {
     const admin = await verifyAdminCredentials(username, password)
 
     if (!admin) {
-      return { success: false, error: "Invalid credentials" }
+      throw new AppError(ErrorType.AUTHENTICATION, "Invalid credentials")
     }
 
-    const sessionCreated = await createSession(admin.admin_id, admin.hospital_id)
-
-    // Set fallback mode cookie if we're in fallback mode
-    if (isFallbackMode()) {
-      cookies().set("fallbackMode", "true", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-      cookies().set("adminUsername", username, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-      cookies().set("adminPassword", password, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-    }
+    const sessionCreated = await createSession(admin.admin_id, admin.hospital_id, username, password)
 
     if (!sessionCreated) {
-      return { success: false, error: "Failed to create session" }
+      throw new AppError(ErrorType.SERVER, "Failed to create session")
     }
 
-    return { success: true, fallbackMode: isFallbackMode() }
-  } catch (error: any) {
-    console.error("Login error:", error)
-    return {
-      success: false,
-      error: error.message || "Authentication failed",
+    return { success: true }
+  } catch (error) {
+    // If this is a database connection error, we should still throw it
+    // but it will be handled specially in the login API route
+    if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+      throw error
     }
+
+    throw logError(error, "Login")
   }
 }
 
@@ -97,16 +93,12 @@ export async function register(username: string, password: string, hospitalId: n
     const result = await registerAdmin(username, password, hospitalId)
 
     if (!result.success) {
-      return { success: false, error: result.error || "Registration failed" }
+      throw new AppError(ErrorType.VALIDATION, "Registration failed")
     }
 
     return { success: true }
-  } catch (error: any) {
-    console.error("Registration error:", error)
-    return {
-      success: false,
-      error: error.message || "Registration failed",
-    }
+  } catch (error) {
+    throw logError(error, "Register")
   }
 }
 

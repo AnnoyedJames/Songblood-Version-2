@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import LoginForm from "./login-form"
+import DbConnectionStatus from "@/components/db-connection-status"
 
 export default async function LoginPage({
   searchParams,
@@ -30,7 +31,10 @@ export default async function LoginPage({
             </div>
           )}
         </div>
+
+        <DbConnectionStatus />
         <LoginForm />
+
         <div className="mt-4 text-center">
           <p className="text-sm text-muted-foreground">
             Need an account?{" "}

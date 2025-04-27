@@ -12,130 +12,124 @@ import InventoryTable from "@/components/inventory-table"
 import SurplusAlerts from "@/components/surplus-alerts"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { redirect } from "next/navigation"
+import DatabaseError from "@/components/database-error"
+import { AppError, ErrorType } from "@/lib/error-handling"
+import { isRedirectError } from "@/lib/navigation"
 
 export default async function DashboardPage() {
-  // Wrap in try-catch to handle any errors
   try {
     const session = await requireAuth()
-
-    // If no session, redirect to login
-    if (!session) {
-      redirect("/login?reason=no-session")
-    }
-
     const { hospitalId } = session
 
-    // Fetch hospital data
-    const hospitalPromise = getHospitalById(hospitalId)
+    try {
+      // Fetch hospital data
+      const hospitalPromise = getHospitalById(hospitalId)
 
-    // Parallel data fetching for better performance
-    const [hospital, redBlood, plasma, platelets, alerts] = await Promise.all([
-      hospitalPromise,
-      getBloodInventory(hospitalId),
-      getPlasmaInventory(hospitalId),
-      getPlateletsInventory(hospitalId),
-      getSurplusAlerts(hospitalId),
-    ]).catch((error) => {
-      console.error("Error fetching dashboard data:", error)
-      // Return fallback data if there's an error
-      return [
-        { hospital_name: "Hospital" },
-        [{ blood_type: "A", rh: "+", count: 5, total_amount: 2250 }],
-        [{ blood_type: "A", count: 4, total_amount: 1000 }],
-        [{ blood_type: "A", rh: "+", count: 3, total_amount: 750 }],
-        [],
-      ]
-    })
+      // Parallel data fetching for better performance
+      const [hospital, redBlood, plasma, platelets, alerts] = await Promise.all([
+        hospitalPromise,
+        getBloodInventory(hospitalId),
+        getPlasmaInventory(hospitalId),
+        getPlateletsInventory(hospitalId),
+        getSurplusAlerts(hospitalId),
+      ])
 
-    // Calculate accurate totals using Number() to ensure proper conversion
-    const redBloodUnits = redBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
-    const redBloodAmount = redBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      // Calculate accurate totals using Number() to ensure proper conversion
+      const redBloodUnits = redBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const redBloodAmount = redBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
-    const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
-    const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
-    const plateletsUnits = platelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
-    const plateletsAmount = platelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const plateletsUnits = platelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const plateletsAmount = platelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header hospitalId={hospitalId} />
+      return (
+        <div className="min-h-screen flex flex-col">
+          <Header hospitalId={hospitalId} />
 
-        <main className="flex-1 container py-6 px-4 md:py-8">
-          <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+          <main className="flex-1 container py-6 px-4 md:py-8">
+            <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-lg font-medium mb-2">Red Blood Cells</h2>
-              <div className="text-3xl font-bold text-red-600">{redBloodUnits} units</div>
-              <p className="text-muted-foreground">{redBloodAmount.toLocaleString()} ml total</p>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h2 className="text-lg font-medium mb-2">Red Blood Cells</h2>
+                <div className="text-3xl font-bold text-red-600">{redBloodUnits} units</div>
+                <p className="text-muted-foreground">{redBloodAmount.toLocaleString()} ml total</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h2 className="text-lg font-medium mb-2">Plasma</h2>
+                <div className="text-3xl font-bold text-amber-600">{plasmaUnits} units</div>
+                <p className="text-muted-foreground">{plasmaAmount.toLocaleString()} ml total</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow">
+                <h2 className="text-lg font-medium mb-2">Platelets</h2>
+                <div className="text-3xl font-bold text-blue-600">{plateletsUnits} units</div>
+                <p className="text-muted-foreground">{plateletsAmount.toLocaleString()} ml total</p>
+              </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-lg font-medium mb-2">Plasma</h2>
-              <div className="text-3xl font-bold text-amber-600">{plasmaUnits} units</div>
-              <p className="text-muted-foreground">{plasmaAmount.toLocaleString()} ml total</p>
+            <div className="grid gap-6 lg:grid-cols-3 mb-8">
+              <div className="lg:col-span-2">
+                <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+                  <BloodInventoryChart redBlood={redBlood} plasma={plasma} platelets={platelets} />
+                </Suspense>
+              </div>
+              <div>
+                <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+                  <SurplusAlerts alerts={alerts} />
+                </Suspense>
+              </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h2 className="text-lg font-medium mb-2">Platelets</h2>
-              <div className="text-3xl font-bold text-blue-600">{plateletsUnits} units</div>
-              <p className="text-muted-foreground">{plateletsAmount.toLocaleString()} ml total</p>
-            </div>
-          </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
+                <InventoryTable title="Red Blood Cell Inventory" inventory={redBlood} showRh={true} />
+              </Suspense>
 
-          <div className="grid gap-6 lg:grid-cols-3 mb-8">
-            <div className="lg:col-span-2">
-              <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
-                <BloodInventoryChart redBlood={redBlood} plasma={plasma} platelets={platelets} />
+              <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
+                <InventoryTable title="Plasma Inventory" inventory={plasma} />
+              </Suspense>
+
+              <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
+                <InventoryTable title="Platelets Inventory" inventory={platelets} showRh={true} />
               </Suspense>
             </div>
-            <div>
-              <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
-                <SurplusAlerts alerts={alerts} />
-              </Suspense>
-            </div>
-          </div>
+          </main>
+        </div>
+      )
+    } catch (error) {
+      // Handle database connection errors
+      if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+        return <DatabaseError message="Unable to load dashboard data. Database connection failed." />
+      }
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
-              <InventoryTable title="Red Blood Cell Inventory" inventory={redBlood} showRh={true} />
-            </Suspense>
+      // Handle redirect errors
+      if (isRedirectError(error)) {
+        console.log("Handling redirect in dashboard page:", error.message)
+        throw error // Let Next.js handle the redirect
+      }
 
-            <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
-              <InventoryTable title="Plasma Inventory" inventory={plasma} />
-            </Suspense>
-
-            <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
-              <InventoryTable title="Platelets Inventory" inventory={platelets} showRh={true} />
-            </Suspense>
-          </div>
-        </main>
-      </div>
-    )
+      // Rethrow other errors to be handled by the error boundary
+      throw error
+    }
   } catch (error) {
     console.error("Dashboard error:", error)
 
     // If the error is a redirect, let it happen
-    if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
+    if (isRedirectError(error)) {
+      console.log("Propagating redirect from dashboard page:", error.message)
       throw error
     }
 
     // Return a simple error message instead of redirecting
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full text-center">
-          <h1 className="text-xl font-bold mb-4">Session Error</h1>
-          <p className="mb-4">There was an error loading your session. Please try logging in again.</p>
-          <a
-            href="/login"
-            className="inline-block px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-          >
-            Go to Login
-          </a>
-        </div>
-      </div>
+      <DatabaseError
+        message="There was an error loading your session. Please try logging in again."
+        showHomeLink={false}
+      />
     )
   }
 }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { login } from "@/lib/auth"
+import { AppError, ErrorType, logError } from "@/lib/error-handling"
+import { getConnectionErrorMessage } from "@/lib/db"
 
 export async function POST(request: Request) {
   try {
@@ -10,57 +12,53 @@ export async function POST(request: Request) {
         {
           success: false,
           error: "Username and password are required",
+          type: ErrorType.VALIDATION,
         },
         { status: 400 },
       )
     }
 
-    const result = await login(username, password)
-
-    // Set fallback mode cookie in the response if needed
-    const response = NextResponse.json(result, { status: result.success ? 200 : 401 })
-
-    if (result.success && result.fallbackMode) {
-      response.cookies.set("fallbackMode", "true", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-    }
-
-    return response
-  } catch (error) {
-    console.error("Login error:", error)
-
-    // Try fallback login if there's an error
     try {
-      const { username, password } = await request.json()
-
-      // Import the isFallbackMode function
-      const { isFallbackMode } = await import("@/lib/db")
-
-      // Force fallback mode
-      const fallbackAdmin = {
-        admin_id: 999,
-        admin_username: username,
-        hospital_id: 1,
+      const result = await login(username, password)
+      return NextResponse.json(result, { status: 200 })
+    } catch (error) {
+      // Check if this is a database connection error
+      if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+        // Return a specific error for database connection issues
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Database connection error: " + getConnectionErrorMessage(),
+            type: ErrorType.DATABASE_CONNECTION,
+          },
+          { status: 503 },
+        )
       }
 
-      // Set cookies for fallback mode
-      const response = NextResponse.json({ success: true, fallbackMode: true }, { status: 200 })
-
-      response.cookies.set("adminId", "999", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-      response.cookies.set("hospitalId", "1", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-      response.cookies.set("fallbackMode", "true", { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-      response.cookies.set("adminUsername", username, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-      response.cookies.set("adminPassword", password, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 })
-
-      return response
-    } catch (fallbackError) {
-      console.error("Fallback login error:", fallbackError)
+      throw error
+    }
+  } catch (error) {
+    // Handle different error types
+    if (error instanceof AppError) {
       return NextResponse.json(
         {
           success: false,
-          error: "An unexpected error occurred. The system is currently unavailable.",
+          error: error.message,
+          type: error.type,
         },
-        { status: 500 },
+        { status: error.type === ErrorType.AUTHENTICATION ? 401 : 500 },
       )
     }
+
+    // Handle unexpected errors
+    const appError = logError(error, "Login API")
+    return NextResponse.json(
+      {
+        success: false,
+        error: appError.message,
+        type: appError.type,
+      },
+      { status: 500 },
+    )
   }
 }

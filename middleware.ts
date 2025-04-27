@@ -16,12 +16,22 @@ export function middleware(request: NextRequest) {
   if (!isAuthenticated && !isPublicPath) {
     // Redirect to login if trying to access protected route without authentication
     const url = new URL("/login", request.url)
+    url.searchParams.set("reason", "session-expired")
+
+    // Log the redirect for debugging
+    console.log(`Middleware redirecting unauthenticated user from ${path} to ${url.toString()}`)
+
     return NextResponse.redirect(url)
   }
 
   if (isAuthenticated && (path === "/login" || path === "/register")) {
     // Redirect to dashboard if already authenticated and trying to access login or register
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    const url = new URL("/dashboard", request.url)
+
+    // Log the redirect for debugging
+    console.log(`Middleware redirecting authenticated user from ${path} to ${url.toString()}`)
+
+    return NextResponse.redirect(url)
   }
 
   return NextResponse.next()

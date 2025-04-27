@@ -28,3 +28,9 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Recent Updates
+
+### Database Configuration
+- Removed deprecated `fetchConnectionCache` option from Neon database configuration as it's now always set to `true` by default.
+- Optimized database connection settings for better performance and reliability.

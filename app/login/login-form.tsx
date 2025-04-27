@@ -10,17 +10,21 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { ErrorType } from "@/lib/error-handling"
+import Link from "next/link"
 
 export default function LoginForm() {
   const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [errorType, setErrorType] = useState<ErrorType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    setErrorType(null)
     setIsLoading(true)
 
     try {
@@ -35,33 +39,16 @@ export default function LoginForm() {
       const data = await response.json()
 
       if (data.success) {
-        // If in fallback mode, set a client-side cookie to indicate this
-        if (data.fallbackMode) {
-          document.cookie = "fallbackMode=true; path=/; max-age=86400"
-        }
-
         router.push("/dashboard")
         router.refresh()
       } else {
         setError(data.error || "Login failed. Please check your credentials and try again.")
+        setErrorType(data.type || null)
       }
     } catch (err) {
       console.error("Login error:", err)
-
-      // Try to use demo credentials in case of connection issues
-      if (username === "demo" && password === "demo") {
-        document.cookie = "adminId=999; path=/; max-age=86400"
-        document.cookie = "hospitalId=1; path=/; max-age=86400"
-        document.cookie = "fallbackMode=true; path=/; max-age=86400"
-        document.cookie = "adminUsername=demo; path=/; max-age=86400"
-        document.cookie = "adminPassword=demo; path=/; max-age=86400"
-
-        router.push("/dashboard")
-        router.refresh()
-        return
-      }
-
-      setError("Connection error. Please try again with demo/demo credentials.")
+      setError("Connection error. Please try again later.")
+      setErrorType(ErrorType.SERVER)
     } finally {
       setIsLoading(false)
     }
@@ -75,11 +62,12 @@ export default function LoginForm() {
       </CardHeader>
       <CardContent>
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant={errorType === ErrorType.DATABASE_CONNECTION ? "warning" : "destructive"} className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
@@ -108,8 +96,13 @@ export default function LoginForm() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="text-center">
-        <p className="text-sm text-muted-foreground">Example: Username: Panya, Password: P9aDhR8e</p>
+      <CardFooter className="flex justify-center">
+        <p className="text-sm text-muted-foreground">
+          Don't have an account?{" "}
+          <Link href="/register" className="text-primary hover:underline">
+            Register
+          </Link>
+        </p>
       </CardFooter>
     </Card>
   )

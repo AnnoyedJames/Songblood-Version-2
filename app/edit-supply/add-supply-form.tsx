@@ -13,6 +13,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { ErrorType } from "@/lib/error-handling"
 
 type AddSupplyFormProps = {
   hospitalId: number
@@ -22,6 +23,7 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [errorType, setErrorType] = useState<ErrorType | null>(null)
   const [success, setSuccess] = useState("")
 
   // Plasma form state
@@ -62,6 +64,7 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
   const handlePlasmaSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrorType(null)
     setSuccess("")
     setIsLoading(true)
 
@@ -91,9 +94,11 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
         router.refresh()
       } else {
         setError(data.error || "Failed to add plasma bag. Please try again.")
+        setErrorType(data.type || null)
       }
     } catch (err) {
       setError("An error occurred. Please try again.")
+      setErrorType(ErrorType.SERVER)
     } finally {
       setIsLoading(false)
     }
@@ -103,6 +108,7 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
   const handlePlateletsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrorType(null)
     setSuccess("")
     setIsLoading(true)
 
@@ -133,9 +139,11 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
         router.refresh()
       } else {
         setError(data.error || "Failed to add platelets bag. Please try again.")
+        setErrorType(data.type || null)
       }
     } catch (err) {
       setError("An error occurred. Please try again.")
+      setErrorType(ErrorType.SERVER)
     } finally {
       setIsLoading(false)
     }
@@ -155,7 +163,7 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
       </CardHeader>
       <CardContent>
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant={errorType === ErrorType.DATABASE_CONNECTION ? "warning" : "destructive"} className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>

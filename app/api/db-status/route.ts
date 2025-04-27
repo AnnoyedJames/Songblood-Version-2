@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server"
-import { testDatabaseConnection, getConnectionErrorMessage } from "@/lib/db"
+import { testDatabaseConnection, isFallbackMode, getConnectionErrorMessage } from "@/lib/db"
 
 export async function GET() {
   try {
     // Test the database connection
-    const result = await testDatabaseConnection()
+    const { connected, error } = await testDatabaseConnection()
 
     return NextResponse.json({
-      connected: result.connected,
-      error: result.error || getConnectionErrorMessage() || undefined,
+      connected,
+      fallbackMode: isFallbackMode(),
+      error: error || getConnectionErrorMessage() || undefined,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -16,6 +17,7 @@ export async function GET() {
 
     return NextResponse.json({
       connected: false,
+      fallbackMode: true,
       error: error instanceof Error ? error.message : "Unknown error",
       timestamp: new Date().toISOString(),
     })

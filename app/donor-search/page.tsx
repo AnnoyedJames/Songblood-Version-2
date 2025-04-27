@@ -2,6 +2,8 @@ import { requireAuth } from "@/lib/auth"
 import Header from "@/components/header"
 import DonorSearchForm from "./donor-search-form"
 import { redirect } from "next/navigation"
+import { AppError, ErrorType } from "@/lib/error-handling"
+import DatabaseError from "@/components/database-error"
 
 export default async function DonorSearchPage() {
   try {
@@ -35,20 +37,17 @@ export default async function DonorSearchPage() {
       throw error
     }
 
-    // Return a simple error message instead of redirecting
+    // Handle database connection errors
+    if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+      return <DatabaseError message="Unable to load donor search. Database connection failed." />
+    }
+
+    // Return a simple error message for other errors
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md w-full text-center">
-          <h1 className="text-xl font-bold mb-4">Session Error</h1>
-          <p className="mb-4">There was an error loading your session. Please try logging in again.</p>
-          <a
-            href="/login"
-            className="inline-block px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-          >
-            Go to Login
-          </a>
-        </div>
-      </div>
+      <DatabaseError
+        message="There was an error loading your session. Please try logging in again."
+        showHomeLink={false}
+      />
     )
   }
 }

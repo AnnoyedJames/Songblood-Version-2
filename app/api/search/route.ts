@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { searchDonors } from "@/lib/db"
 import { cookies } from "next/headers"
+import { AppError, ErrorType, logError } from "@/lib/error-handling"
 
 export async function GET(request: Request) {
   try {
@@ -10,7 +11,14 @@ export async function GET(request: Request) {
     const hospitalId = cookieStore.get("hospitalId")?.value
 
     if (!adminId || !hospitalId) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+          type: ErrorType.AUTHENTICATION,
+        },
+        { status: 401 },
+      )
     }
 
     // Get search query
@@ -21,8 +29,28 @@ export async function GET(request: Request) {
     const results = await searchDonors(query)
 
     return NextResponse.json({ success: true, results })
-  } catch (error: any) {
-    console.error("Search error:", error)
-    return NextResponse.json({ success: false, error: error.message || "An error occurred" }, { status: 500 })
+  } catch (error) {
+    // Handle different error types
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          type: error.type,
+        },
+        { status: error.type === ErrorType.AUTHENTICATION ? 401 : 500 },
+      )
+    }
+
+    // Handle unexpected errors
+    const appError = logError(error, "Search API")
+    return NextResponse.json(
+      {
+        success: false,
+        error: appError.message,
+        type: appError.type,
+      },
+      { status: 500 },
+    )
   }
 }
