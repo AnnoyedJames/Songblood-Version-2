@@ -15,20 +15,8 @@ export async function POST(request: Request) {
       )
     }
 
-    try {
-      const result = await login(username, password)
-      return NextResponse.json(result, { status: result.success ? 200 : 401 })
-    } catch (error: any) {
-      console.error("Login error:", error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Database connection error. Please try again later.",
-          isDbError: true,
-        },
-        { status: 503 },
-      )
-    }
+    const result = await login(username, password)
+    return NextResponse.json(result, { status: result.success ? 200 : 401 })
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json(

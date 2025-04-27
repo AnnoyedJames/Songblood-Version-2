@@ -20,42 +20,30 @@ export default function EditSupplyLoading() {
       <main className="flex-1 container py-6 px-4 md:py-8">
         <Skeleton className="h-8 w-40 mb-6" />
 
-        <div className="space-y-6">
-          {/* Tabs skeleton */}
-          <Skeleton className="h-10 w-full mb-6" />
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Inventory table skeleton */}
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-6 w-40 mb-2" />
-                <Skeleton className="h-4 w-64" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-64 w-full" />
-              </CardContent>
-            </Card>
-
-            {/* Add form skeleton */}
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-6 w-40 mb-2" />
-                <Skeleton className="h-4 w-64" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+        <div className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-40 mb-2" />
+              <Skeleton className="h-4 w-64" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex gap-2 mb-6">
                   <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-24" />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-10 w-full mb-4" />
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-10 w-full mb-4" />
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-10 w-full mb-4" />
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-10 w-full mb-4" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

@@ -10,8 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
-import Link from "next/link"
-import DatabaseError from "@/components/database-error"
 
 export default function LoginForm() {
   const router = useRouter()
@@ -19,13 +17,11 @@ export default function LoginForm() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [dbError, setDbError] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
     setIsLoading(true)
-    setDbError(false)
 
     try {
       const response = await fetch("/api/login", {
@@ -42,22 +38,14 @@ export default function LoginForm() {
         router.push("/dashboard")
         router.refresh()
       } else {
-        if (data.isDbError) {
-          setDbError(true)
-        } else {
-          setError(data.error || "Login failed. Please check your credentials and try again.")
-        }
+        setError(data.error || "Login failed. Please check your credentials and try again.")
       }
     } catch (err) {
       console.error("Login error:", err)
-      setDbError(true)
+      setError("Connection error. Please try again later.")
     } finally {
       setIsLoading(false)
     }
-  }
-
-  if (dbError) {
-    return <DatabaseError showLoginLink={false} />
   }
 
   return (
@@ -101,13 +89,8 @@ export default function LoginForm() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex justify-center">
-        <p className="text-sm text-muted-foreground">
-          Need an account?{" "}
-          <Link href="/register" className="text-primary hover:underline">
-            Register here
-          </Link>
-        </p>
+      <CardFooter className="text-center">
+        <p className="text-sm text-muted-foreground">Example: Username: Panya, Password: P9aDhR8e</p>
       </CardFooter>
     </Card>
   )

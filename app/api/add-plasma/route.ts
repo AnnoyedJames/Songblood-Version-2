@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     // Get request body
-    const { donorName, amount, expirationDate, bloodType, rh, hospitalId: formHospitalId } = await request.json()
+    const { donorName, amount, expirationDate, bloodType, hospitalId: formHospitalId } = await request.json()
 
     // Validate hospital ID
     if (Number(hospitalId) !== formHospitalId) {
@@ -30,34 +30,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Session expired. Please login again." }, { status: 401 })
     }
 
-    try {
-      // Add new plasma bag
-      const result = await addNewPlasmaBag(
-        donorName,
-        amount,
-        Number(hospitalId),
-        expirationDate,
-        bloodType,
-        rh,
-        adminUsername,
-        adminPassword,
-      )
+    // Add new plasma bag
+    const result = await addNewPlasmaBag(
+      donorName,
+      amount,
+      Number(hospitalId),
+      expirationDate,
+      bloodType,
+      adminUsername,
+      adminPassword,
+    )
 
-      if (!result.success) {
-        return NextResponse.json({ success: false, error: result.error }, { status: 400 })
-      }
-
-      // Invalidate relevant caches
-      queryCache.invalidate(`plasma:${hospitalId}`)
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      console.error("Database error:", error)
-      return NextResponse.json(
-        { success: false, error: "Database connection error. Please try again later." },
-        { status: 503 },
-      )
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
     }
+
+    // Invalidate relevant caches
+    queryCache.invalidate(`plasma:${hospitalId}`)
+
+    return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("Add plasma error:", error)
     return NextResponse.json({ success: false, error: error.message || "An error occurred" }, { status: 500 })

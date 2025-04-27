@@ -17,17 +17,10 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const query = url.searchParams.get("q") || ""
 
-    try {
-      // Search donors
-      const results = await searchDonors(query)
-      return NextResponse.json({ success: true, results })
-    } catch (error) {
-      console.error("Database error during search:", error)
-      return NextResponse.json(
-        { success: false, error: "Database connection error. Please try again later." },
-        { status: 503 },
-      )
-    }
+    // Search donors
+    const results = await searchDonors(query)
+
+    return NextResponse.json({ success: true, results })
   } catch (error: any) {
     console.error("Search error:", error)
     return NextResponse.json({ success: false, error: error.message || "An error occurred" }, { status: 500 })

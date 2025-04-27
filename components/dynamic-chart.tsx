@@ -43,21 +43,16 @@ export default function DynamicChart({ redBlood, plasma, platelets }: DynamicCha
   }
 
   const findPlasmaItem = (fullType: string) => {
-    // For plasma, we now include Rh factor
-    let bloodType, rh
+    // For plasma, we only care about the blood type (A, B, AB, O)
+    let bloodType
 
-    if (fullType.includes("+") || fullType.includes("-")) {
-      if (fullType.startsWith("AB")) {
-        bloodType = "AB"
-        rh = fullType.substring(2) // Get the + or - after AB
-      } else {
-        bloodType = fullType.charAt(0) // A, B, or O
-        rh = fullType.substring(1) // Get the + or - after the blood type
-      }
-
-      return plasma.find((item) => item.blood_type === bloodType && item.rh === rh)
+    if (fullType.startsWith("AB")) {
+      bloodType = "AB"
+    } else {
+      bloodType = fullType.charAt(0) // A, B, or O
     }
-    return null
+
+    return plasma.find((item) => item.blood_type === bloodType)
   }
 
   const findPlateletsItem = (fullType: string) => {

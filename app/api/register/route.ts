@@ -15,20 +15,8 @@ export async function POST(request: Request) {
       )
     }
 
-    try {
-      const result = await register(username, password, hospitalId)
-      return NextResponse.json(result, { status: result.success ? 200 : 400 })
-    } catch (error) {
-      console.error("Registration error:", error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Database connection error. Please try again later.",
-          isDbError: true,
-        },
-        { status: 503 },
-      )
-    }
+    const result = await register(username, password, hospitalId)
+    return NextResponse.json(result, { status: result.success ? 200 : 400 })
   } catch (error) {
     console.error("Registration error:", error)
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { checkDatabaseConnection } from "@/lib/db-connection"
+import { checkDatabaseConnection, isFallbackMode } from "@/lib/db"
 
 export async function GET() {
   try {
@@ -7,14 +7,14 @@ export async function GET() {
 
     return NextResponse.json({
       connected: isConnected,
-      timestamp: new Date().toISOString(),
+      fallbackMode: isFallbackMode(),
     })
   } catch (error) {
     console.error("Connection check error:", error)
     return NextResponse.json({
       connected: false,
+      fallbackMode: true,
       error: "Failed to check database connection",
-      timestamp: new Date().toISOString(),
     })
   }
 }

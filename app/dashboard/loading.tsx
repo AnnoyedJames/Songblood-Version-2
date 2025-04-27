@@ -36,20 +36,12 @@ export default function DashboardLoading() {
           <div className="lg:col-span-2">
             <Skeleton className="h-96 w-full rounded-lg" />
           </div>
-          <div className="space-y-6">
+          <div>
             <Card>
               <CardContent className="p-6">
                 <Skeleton className="h-6 w-40 mb-4" />
                 <div className="space-y-3">
                   <Skeleton className="h-20 w-full rounded-lg" />
-                  <Skeleton className="h-20 w-full rounded-lg" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <Skeleton className="h-6 w-40 mb-4" />
-                <div className="space-y-3">
                   <Skeleton className="h-20 w-full rounded-lg" />
                 </div>
               </CardContent>

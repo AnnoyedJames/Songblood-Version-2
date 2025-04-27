@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
-import DatabaseError from "@/components/database-error"
 
 export default function RegisterForm() {
   const router = useRouter()
@@ -21,12 +20,10 @@ export default function RegisterForm() {
   const [hospitalId, setHospitalId] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [dbError, setDbError] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    setDbError(false)
 
     // Basic validation
     if (password !== confirmPassword) {
@@ -54,22 +51,14 @@ export default function RegisterForm() {
       if (data.success) {
         router.push("/login?registered=true")
       } else {
-        if (data.isDbError) {
-          setDbError(true)
-        } else {
-          setError(data.error || "Registration failed. Please try again.")
-        }
+        setError(data.error || "Registration failed. Please try again.")
       }
     } catch (err) {
       console.error("Registration error:", err)
-      setDbError(true)
+      setError("Connection error. Please try again later.")
     } finally {
       setIsLoading(false)
     }
-  }
-
-  if (dbError) {
-    return <DatabaseError showLoginLink={false} />
   }
 
   return (
