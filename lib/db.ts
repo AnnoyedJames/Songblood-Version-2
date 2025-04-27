@@ -537,6 +537,39 @@ export async function addNewPlateletsBag(
   }
 }
 
+// Helper function to add new red blood cell bag
+export async function addNewRedBloodBag(
+  donorName: string,
+  amount: number,
+  hospitalId: number,
+  expirationDate: string,
+  bloodType: string,
+  rh: string,
+  adminUsername: string,
+  adminPassword: string,
+) {
+  try {
+    // Use tagged template literal syntax
+    await dbClient`
+      SELECT Add_New_RedBloodBag(
+        ${donorName},
+        ${amount},
+        ${hospitalId},
+        ${expirationDate}::date,
+        ${bloodType},
+        ${rh},
+        ${adminUsername},
+        ${adminPassword}
+      )
+    `
+    // Invalidate relevant caches
+    queryCache.invalidate(`redblood:${hospitalId}`)
+    return { success: true }
+  } catch (error) {
+    throw logError(error, "Add Red Blood Cell Bag")
+  }
+}
+
 // Function to check database connection
 export async function checkDatabaseConnection() {
   if (IS_FALLBACK_MODE) {

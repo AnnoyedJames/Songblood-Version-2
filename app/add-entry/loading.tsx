@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
-export default function EditSupplyLoading() {
+export default function AddEntryLoading() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header skeleton */}

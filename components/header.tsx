@@ -56,8 +56,8 @@ export default async function Header({ hospitalId }: HeaderProps) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/edit-supply" prefetch={true}>
-                  Edit Supply
+                <Link href="/add-entry" prefetch={true}>
+                  Add Entry
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
@@ -81,8 +81,8 @@ export default async function Header({ hospitalId }: HeaderProps) {
           <NavLink href="/dashboard" activeClassName="text-primary font-semibold">
             Dashboard
           </NavLink>
-          <NavLink href="/edit-supply" activeClassName="text-primary font-semibold">
-            Edit Supply
+          <NavLink href="/add-entry" activeClassName="text-primary font-semibold">
+            Add Entry
           </NavLink>
           <NavLink href="/donor-search" activeClassName="text-primary font-semibold">
             Donor Search

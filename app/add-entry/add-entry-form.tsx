@@ -15,16 +15,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ErrorType } from "@/lib/error-handling"
 
-type AddSupplyFormProps = {
+type AddEntryFormProps = {
   hospitalId: number
 }
 
-export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
+export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [errorType, setErrorType] = useState<ErrorType | null>(null)
   const [success, setSuccess] = useState("")
+
+  // Red blood cell form state
+  const [redBloodForm, setRedBloodForm] = useState({
+    donorName: "",
+    amount: "",
+    expirationDate: "",
+    bloodType: "",
+    rh: "+",
+  })
 
   // Plasma form state
   const [plasmaForm, setPlasmaForm] = useState({
@@ -43,6 +52,17 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
     rh: "+",
   })
 
+  // Handle red blood cell form change
+  const handleRedBloodChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setRedBloodForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  // Handle red blood cell Rh change
+  const handleRedBloodRhChange = (value: string) => {
+    setRedBloodForm((prev) => ({ ...prev, rh: value }))
+  }
+
   // Handle plasma form change
   const handlePlasmaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -56,8 +76,53 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
   }
 
   // Handle platelets Rh change
-  const handleRhChange = (value: string) => {
+  const handlePlateletsRhChange = (value: string) => {
     setPlateletsForm((prev) => ({ ...prev, rh: value }))
+  }
+
+  // Handle red blood cell form submit
+  const handleRedBloodSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setErrorType(null)
+    setSuccess("")
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/add-redblood", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...redBloodForm,
+          amount: Number(redBloodForm.amount),
+          hospitalId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSuccess("Red blood cell bag added successfully!")
+        setRedBloodForm({
+          donorName: "",
+          amount: "",
+          expirationDate: "",
+          bloodType: "",
+          rh: "+",
+        })
+        router.refresh()
+      } else {
+        setError(data.error || "Failed to add red blood cell bag. Please try again.")
+        setErrorType(data.type || null)
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.")
+      setErrorType(ErrorType.SERVER)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   // Handle plasma form submit
@@ -158,8 +223,8 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Add New Supply</CardTitle>
-        <CardDescription>Add new plasma or platelets to your hospital's inventory</CardDescription>
+        <CardTitle>Add New Entry</CardTitle>
+        <CardDescription>Add new blood components to your hospital's inventory</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
@@ -176,11 +241,94 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
           </Alert>
         )}
 
-        <Tabs defaultValue="plasma">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+        <Tabs defaultValue="redblood">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="redblood">Red Blood Cells</TabsTrigger>
             <TabsTrigger value="plasma">Plasma</TabsTrigger>
             <TabsTrigger value="platelets">Platelets</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="redblood">
+            <form onSubmit={handleRedBloodSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="redblood-donorName">Donor Name</Label>
+                <Input
+                  id="redblood-donorName"
+                  name="donorName"
+                  value={redBloodForm.donorName}
+                  onChange={handleRedBloodChange}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="redblood-amount">Amount (ml)</Label>
+                <Input
+                  id="redblood-amount"
+                  name="amount"
+                  type="number"
+                  min="100"
+                  max="500"
+                  value={redBloodForm.amount}
+                  onChange={handleRedBloodChange}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="redblood-expirationDate">Expiration Date</Label>
+                <Input
+                  id="redblood-expirationDate"
+                  name="expirationDate"
+                  type="date"
+                  min={getMinDate()}
+                  value={redBloodForm.expirationDate}
+                  onChange={handleRedBloodChange}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="redblood-bloodType">Blood Type</Label>
+                  <Select
+                    name="bloodType"
+                    value={redBloodForm.bloodType}
+                    onValueChange={(value) => setRedBloodForm((prev) => ({ ...prev, bloodType: value }))}
+                    required
+                  >
+                    <SelectTrigger id="redblood-bloodType">
+                      <SelectValue placeholder="Select blood type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="AB">AB</SelectItem>
+                      <SelectItem value="O">O</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Rh Factor</Label>
+                  <RadioGroup value={redBloodForm.rh} onValueChange={handleRedBloodRhChange} className="flex space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="+" id="redblood-rh-positive" />
+                      <Label htmlFor="redblood-rh-positive">Positive (+)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="-" id="redblood-rh-negative" />
+                      <Label htmlFor="redblood-rh-negative">Negative (-)</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Adding..." : "Add Red Blood Cell Bag"}
+              </Button>
+            </form>
+          </TabsContent>
 
           <TabsContent value="plasma">
             <form onSubmit={handlePlasmaSubmit} className="space-y-4">
@@ -311,14 +459,18 @@ export default function AddSupplyForm({ hospitalId }: AddSupplyFormProps) {
 
                 <div className="space-y-2">
                   <Label>Rh Factor</Label>
-                  <RadioGroup value={plateletsForm.rh} onValueChange={handleRhChange} className="flex space-x-4">
+                  <RadioGroup
+                    value={plateletsForm.rh}
+                    onValueChange={handlePlateletsRhChange}
+                    className="flex space-x-4"
+                  >
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="+" id="rh-positive" />
-                      <Label htmlFor="rh-positive">Positive (+)</Label>
+                      <RadioGroupItem value="+" id="platelets-rh-positive" />
+                      <Label htmlFor="platelets-rh-positive">Positive (+)</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="-" id="rh-negative" />
-                      <Label htmlFor="rh-negative">Negative (-)</Label>
+                      <RadioGroupItem value="-" id="platelets-rh-negative" />
+                      <Label htmlFor="platelets-rh-negative">Negative (-)</Label>
                     </div>
                   </RadioGroup>
                 </div>
