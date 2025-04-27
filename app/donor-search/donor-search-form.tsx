@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { formatBloodType, formatDate, getBloodTypeColor } from "@/lib/utils"
 import { Search } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import DatabaseError from "@/components/database-error"
 
 type SearchResult = {
   type: string
@@ -28,6 +31,8 @@ export default function DonorSearchForm() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [error, setError] = useState("")
+  const [dbError, setDbError] = useState(false)
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -36,22 +41,41 @@ export default function DonorSearchForm() {
 
     setIsLoading(true)
     setSearched(true)
+    setError("")
+    setDbError(false)
 
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
+
+      if (!response.ok) {
+        if (response.status === 503) {
+          setDbError(true)
+          return
+        }
+        throw new Error(`Search failed with status: ${response.status}`)
+      }
+
       const data = await response.json()
 
       if (data.success) {
         setResults(data.results)
       } else {
         setResults([])
+        if (data.error) {
+          setError(data.error)
+        }
       }
     } catch (err) {
       console.error("Search error:", err)
+      setError("An error occurred while searching. Please try again.")
       setResults([])
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (dbError) {
+    return <DatabaseError showLoginLink={false} />
   }
 
   return (
@@ -74,7 +98,14 @@ export default function DonorSearchForm() {
           </Button>
         </form>
 
-        {searched && (
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {searched && !error && (
           <div>
             <h3 className="text-lg font-medium mb-4">Search Results {results.length > 0 && `(${results.length})`}</h3>
 

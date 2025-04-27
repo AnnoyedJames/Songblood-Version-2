@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { addNewPlasmaBag } from "@/lib/db"
 import { cookies } from "next/headers"
 import { queryCache } from "@/lib/cache"
+import { executeSQL } from "@/lib/db-connection"
 
 export async function POST(request: Request) {
   try {
@@ -31,35 +31,29 @@ export async function POST(request: Request) {
     }
 
     try {
-      // Add new plasma bag
-      const result = await addNewPlasmaBag(
+      // Add new red blood cell bag
+      await executeSQL(
+        `INSERT INTO redblood_inventory 
+        (donor_name, amount, hospital_id, expiration_date, blood_type, rh) 
+        VALUES ($1, $2, $3, $4, $5, $6)`,
         donorName,
         amount,
         Number(hospitalId),
         expirationDate,
         bloodType,
         rh,
-        adminUsername,
-        adminPassword,
       )
 
-      if (!result.success) {
-        return NextResponse.json({ success: false, error: result.error }, { status: 400 })
-      }
-
       // Invalidate relevant caches
-      queryCache.invalidate(`plasma:${hospitalId}`)
+      queryCache.invalidate(`redblood:${hospitalId}`)
 
       return NextResponse.json({ success: true })
     } catch (error) {
       console.error("Database error:", error)
-      return NextResponse.json(
-        { success: false, error: "Database connection error. Please try again later." },
-        { status: 503 },
-      )
+      return NextResponse.json({ success: false, error: "Database error. Please try again later." }, { status: 503 })
     }
   } catch (error: any) {
-    console.error("Add plasma error:", error)
+    console.error("Add red blood cell error:", error)
     return NextResponse.json({ success: false, error: error.message || "An error occurred" }, { status: 500 })
   }
 }

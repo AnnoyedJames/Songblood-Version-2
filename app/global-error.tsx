@@ -18,7 +18,7 @@ export default function GlobalError({
       <body>
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
           <div className="text-center max-w-md">
-            <h1 className="text-4xl font-bold mb-4">{isRedirectError ? "Session Error" : "Something went wrong :("}</h1>
+            <h1 className="text-4xl font-bold mb-4">{isRedirectError ? "Session Error" : "Something went wrong"}</h1>
             <p className="text-gray-600 mb-8">
               {isRedirectError
                 ? "Your session may have expired or you need to log in."

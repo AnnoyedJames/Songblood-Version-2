@@ -15,7 +15,7 @@ type InventoryTableProps = {
   showRh?: boolean
 }
 
-export default function InventoryTable({ title, inventory, showRh = false }: InventoryTableProps) {
+export default function InventoryTable({ title, inventory, showRh = true }: InventoryTableProps) {
   // Ensure inventory data is valid
   const validInventory = inventory.filter(
     (item) =>

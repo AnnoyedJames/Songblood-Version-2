@@ -37,6 +37,8 @@ export async function clearSession() {
   try {
     cookies().delete("adminId")
     cookies().delete("hospitalId")
+    cookies().delete("adminUsername")
+    cookies().delete("adminPassword")
     return true
   } catch (error) {
     console.error("Error clearing session:", error)
@@ -65,13 +67,14 @@ export async function login(username: string, password: string) {
       return { success: false, error: "Failed to create session" }
     }
 
+    // Store credentials in cookies for API calls
+    cookies().set("adminUsername", username, { httpOnly: true })
+    cookies().set("adminPassword", password, { httpOnly: true })
+
     return { success: true }
   } catch (error: any) {
     console.error("Login error:", error)
-    return {
-      success: false,
-      error: error.message || "Authentication failed",
-    }
+    throw error
   }
 }
 
@@ -79,18 +82,10 @@ export async function login(username: string, password: string) {
 export async function register(username: string, password: string, hospitalId: number) {
   try {
     const result = await registerAdmin(username, password, hospitalId)
-
-    if (!result.success) {
-      return { success: false, error: result.error || "Registration failed" }
-    }
-
-    return { success: true }
+    return result
   } catch (error: any) {
     console.error("Registration error:", error)
-    return {
-      success: false,
-      error: error.message || "Registration failed",
-    }
+    throw error
   }
 }
 

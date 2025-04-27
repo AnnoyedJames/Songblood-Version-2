@@ -30,26 +30,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Session expired. Please login again." }, { status: 401 })
     }
 
-    // Add new platelets bag
-    const result = await addNewPlateletsBag(
-      donorName,
-      amount,
-      Number(hospitalId),
-      expirationDate,
-      bloodType,
-      rh,
-      adminUsername,
-      adminPassword,
-    )
+    try {
+      // Add new platelets bag
+      const result = await addNewPlateletsBag(
+        donorName,
+        amount,
+        Number(hospitalId),
+        expirationDate,
+        bloodType,
+        rh,
+        adminUsername,
+        adminPassword,
+      )
 
-    if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
+      if (!result.success) {
+        return NextResponse.json({ success: false, error: result.error }, { status: 400 })
+      }
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`platelets:${hospitalId}`)
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error("Database error:", error)
+      return NextResponse.json(
+        { success: false, error: "Database connection error. Please try again later." },
+        { status: 503 },
+      )
     }
-
-    // Invalidate relevant caches
-    queryCache.invalidate(`platelets:${hospitalId}`)
-
-    return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("Add platelets error:", error)
     return NextResponse.json({ success: false, error: error.message || "An error occurred" }, { status: 500 })
