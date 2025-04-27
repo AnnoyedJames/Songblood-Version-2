@@ -15,6 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import DatabaseError from "@/components/database-error"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import { isRedirectError } from "@/lib/navigation"
+import Link from "next/link"
+import { ChevronRight } from "lucide-react"
 
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
@@ -37,10 +39,15 @@ export default async function DashboardPage() {
         getSurplusAlerts(hospitalId),
       ])
 
+      console.log("Dashboard - Red Blood Cell data:", JSON.stringify(redBlood, null, 2))
+
       // Calculate accurate totals using Number() to ensure proper conversion
       const redBloodUnits = redBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const redBloodAmount = redBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
+      console.log("Dashboard - Red Blood Cell totals:", { units: redBloodUnits, amount: redBloodAmount })
+
+      // Calculate accurate totals using Number() to ensure proper conversion
       const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
@@ -52,7 +59,13 @@ export default async function DashboardPage() {
           <Header hospitalId={hospitalId} />
 
           <main className="flex-1 container py-6 px-4 md:py-8">
-            <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-bold">Dashboard</h1>
+              <Link href="/diagnostics" className="text-sm text-primary hover:underline flex items-center">
+                <span>Data Diagnostics</span>
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
               <div className="bg-white p-6 rounded-lg shadow">

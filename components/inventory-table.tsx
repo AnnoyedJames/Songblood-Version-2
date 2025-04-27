@@ -16,14 +16,27 @@ type InventoryTableProps = {
 }
 
 export default function InventoryTable({ title, inventory, showRh = false }: InventoryTableProps) {
-  // Ensure inventory data is valid
-  const validInventory = inventory.filter(
-    (item) =>
-      item &&
-      item.blood_type &&
-      (typeof item.count === "number" || typeof item.count === "string") &&
-      (typeof item.total_amount === "number" || typeof item.total_amount === "string"),
-  )
+  console.log(`InventoryTable - ${title} received data:`, JSON.stringify(inventory, null, 2))
+
+  // Ensure inventory data is valid and properly formatted
+  const validInventory = inventory
+    .filter(
+      (item) =>
+        item &&
+        item.blood_type &&
+        (typeof item.count === "number" || typeof item.count === "string") &&
+        (typeof item.total_amount === "number" || typeof item.total_amount === "string"),
+    )
+    .map((item) => ({
+      ...item,
+      // Ensure count and total_amount are numbers
+      count: Number(item.count),
+      total_amount: Number(item.total_amount),
+      // Ensure rh is a string if it exists
+      rh: item.rh !== undefined ? String(item.rh) : undefined,
+    }))
+
+  console.log(`InventoryTable - ${title} valid data:`, JSON.stringify(validInventory, null, 2))
 
   // Sort inventory by blood type (A, B, AB, O) and then by Rh factor (+ then -)
   const sortedInventory = [...validInventory].sort((a, b) => {
@@ -46,9 +59,13 @@ export default function InventoryTable({ title, inventory, showRh = false }: Inv
     return 0
   })
 
+  console.log(`InventoryTable - ${title} sorted data:`, JSON.stringify(sortedInventory, null, 2))
+
   // Calculate total units and amount
-  const totalUnits = sortedInventory.reduce((sum, item) => sum + Number(item.count || 0), 0)
-  const totalAmount = sortedInventory.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+  const totalUnits = sortedInventory.reduce((sum, item) => sum + item.count, 0)
+  const totalAmount = sortedInventory.reduce((sum, item) => sum + item.total_amount, 0)
+
+  console.log(`InventoryTable - ${title} calculated totals:`, { units: totalUnits, amount: totalAmount })
 
   return (
     <div className="bg-white rounded-lg shadow">

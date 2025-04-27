@@ -2,10 +2,18 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
 export function formatBloodType(bloodType: string, rh?: string): string {
-  if (rh) {
-    return `${bloodType}${rh}`
+  // Handle null or undefined blood type
+  if (!bloodType) {
+    return "Unknown"
   }
-  return bloodType
+
+  // Handle null or undefined rh when it should be present
+  if (rh === null || rh === undefined) {
+    return bloodType
+  }
+
+  // Ensure proper formatting
+  return `${bloodType}${rh}`
 }
 
 export function getBloodTypeColor(bloodType: string, rh?: string): string {

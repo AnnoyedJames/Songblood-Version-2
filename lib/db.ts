@@ -220,6 +220,7 @@ export async function getBloodInventory(hospitalId: number) {
     const cached = queryCache.get<any[]>(cacheKey)
 
     if (cached) {
+      console.log("Using cached red blood cell data:", cached)
       return cached
     }
 
@@ -232,8 +233,17 @@ export async function getBloodInventory(hospitalId: number) {
       ORDER BY blood_type, rh
     `
 
-    queryCache.set(cacheKey, redBlood)
-    return redBlood
+    console.log("Retrieved red blood cell data from DB:", redBlood)
+
+    // Ensure numeric values are properly parsed
+    const processedData = redBlood.map((item) => ({
+      ...item,
+      count: Number(item.count),
+      total_amount: Number(item.total_amount),
+    }))
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
   } catch (error) {
     throw logError(error, "Get Blood Inventory")
   }

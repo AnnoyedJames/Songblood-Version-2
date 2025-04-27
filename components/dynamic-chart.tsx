@@ -19,7 +19,12 @@ type DynamicChartProps = {
   platelets: InventoryItem[]
 }
 
+// Let's add some logging to debug the data received by the component
 export default function DynamicChart({ redBlood, plasma, platelets }: DynamicChartProps) {
+  console.log("DynamicChart - Red Blood Cell data:", JSON.stringify(redBlood, null, 2))
+  console.log("DynamicChart - Plasma data:", JSON.stringify(plasma, null, 2))
+  console.log("DynamicChart - Platelets data:", JSON.stringify(platelets, null, 2))
+
   // Process data for chart
   const bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 
@@ -37,7 +42,17 @@ export default function DynamicChart({ redBlood, plasma, platelets }: DynamicCha
         rh = fullType.substring(1) // Get the + or - after the blood type
       }
 
-      return redBlood.find((item) => item.blood_type === bloodType && item.rh === rh)
+      // Ensure we're comparing strings to strings or numbers to numbers
+      const foundItem = redBlood.find((item) => item.blood_type === bloodType && String(item.rh) === String(rh))
+
+      if (!foundItem) {
+        console.log(
+          `No red blood item found for ${bloodType}${rh}. Available items:`,
+          redBlood.map((item) => `${item.blood_type}${item.rh}`),
+        )
+      }
+
+      return foundItem
     }
     return null
   }
