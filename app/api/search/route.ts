@@ -3,6 +3,9 @@ import { searchDonors } from "@/lib/db"
 import { cookies } from "next/headers"
 import { AppError, ErrorType, logError } from "@/lib/error-handling"
 
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
+
 export async function GET(request: Request) {
   try {
     // Get session

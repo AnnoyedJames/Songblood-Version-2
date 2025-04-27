@@ -6,6 +6,9 @@ import { redirect } from "next/navigation"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import DatabaseError from "@/components/database-error"
 
+// Force dynamic rendering since we're using cookies
+export const dynamic = "force-dynamic"
+
 export default async function EditSupplyPage() {
   try {
     const session = await requireAuth()

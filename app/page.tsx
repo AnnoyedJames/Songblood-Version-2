@@ -2,6 +2,9 @@ import { getSession } from "@/lib/auth"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
+// Force dynamic rendering since we're using cookies
+export const dynamic = "force-dynamic"
+
 export default async function Home() {
   try {
     const session = await getSession()

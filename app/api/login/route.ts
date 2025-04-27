@@ -3,6 +3,9 @@ import { login } from "@/lib/auth"
 import { AppError, ErrorType, logError } from "@/lib/error-handling"
 import { getConnectionErrorMessage } from "@/lib/db"
 
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
+
 export async function POST(request: Request) {
   try {
     const { username, password } = await request.json()

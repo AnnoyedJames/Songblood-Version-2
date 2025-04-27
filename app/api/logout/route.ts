@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 import { clearSession } from "@/lib/auth"
 import { logError } from "@/lib/error-handling"
 
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
+
 export async function POST() {
   try {
     await clearSession()

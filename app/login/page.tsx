@@ -2,11 +2,15 @@ import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import LoginForm from "./login-form"
 import DbConnectionStatus from "@/components/db-connection-status"
+import RedirectHandler from "@/components/redirect-handler"
+
+// Force dynamic rendering since we're using cookies
+export const dynamic = "force-dynamic"
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { registered?: string }
+  searchParams: { registered?: string; reason?: string }
 }) {
   const session = await getSession()
 
@@ -15,6 +19,7 @@ export default async function LoginPage({
   }
 
   const justRegistered = searchParams.registered === "true"
+  const redirectReason = searchParams.reason
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -32,6 +37,7 @@ export default async function LoginPage({
           )}
         </div>
 
+        {redirectReason && <RedirectHandler reason={redirectReason} />}
         <DbConnectionStatus />
         <LoginForm />
 

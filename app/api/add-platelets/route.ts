@@ -3,6 +3,9 @@ import { addNewPlateletsBag } from "@/lib/db"
 import { cookies } from "next/headers"
 import { queryCache } from "@/lib/cache"
 
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
+
 export async function POST(request: Request) {
   try {
     // Get session

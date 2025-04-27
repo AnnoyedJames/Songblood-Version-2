@@ -16,6 +16,9 @@ import DatabaseError from "@/components/database-error"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import { isRedirectError } from "@/lib/navigation"
 
+// Force dynamic rendering since we're using cookies
+export const dynamic = "force-dynamic"
+
 export default async function DashboardPage() {
   try {
     const session = await requireAuth()

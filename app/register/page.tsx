@@ -2,6 +2,9 @@ import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import RegisterForm from "./register-form"
 
+// Force dynamic rendering since we're using cookies
+export const dynamic = "force-dynamic"
+
 export default async function RegisterPage() {
   const session = await getSession()
 

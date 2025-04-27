@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
-import { isFallbackMode } from "@/lib/db"
+
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
@@ -8,11 +10,9 @@ export async function GET() {
 
     return NextResponse.json({
       authenticated: !!session,
-      fallbackMode: isFallbackMode(),
       session: session
         ? {
             hospitalId: session.hospitalId,
-            fallbackMode: session.fallbackMode,
           }
         : null,
     })
@@ -20,7 +20,6 @@ export async function GET() {
     console.error("Session check error:", error)
     return NextResponse.json({
       authenticated: false,
-      fallbackMode: true,
       error: "Failed to check session",
     })
   }

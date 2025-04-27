@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import { testDatabaseConnection, getConnectionErrorMessage } from "@/lib/db"
 
+// Force dynamic rendering for API routes
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   try {
     // Test the database connection
