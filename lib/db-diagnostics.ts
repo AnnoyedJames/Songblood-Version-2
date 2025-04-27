@@ -28,73 +28,94 @@ export async function diagnoseRedBloodInventory(filters: DiagnosticFilters) {
     const { hospitalId, showAllHospitals, bloodType, rhFactor, expirationStatus = "all", limit = 100 } = filters
 
     // Build the WHERE clause based on filters
-    const hospitalCondition = showAllHospitals ? "" : `hospital_id = ${hospitalId} AND`
-    const bloodTypeCondition = bloodType ? `blood_type = '${bloodType}' AND` : ""
-    const rhFactorCondition = rhFactor ? `rh = '${rhFactor}' AND` : ""
-    let expirationCondition = ""
+    const conditions = []
 
-    if (expirationStatus === "valid") {
-      expirationCondition = "expiration_date > CURRENT_DATE AND"
-    } else if (expirationStatus === "expired") {
-      expirationCondition = "expiration_date <= CURRENT_DATE AND"
+    if (!showAllHospitals) {
+      conditions.push(`hospital_id = ${hospitalId}`)
     }
 
-    // Remove trailing AND if present
-    const whereClause = `WHERE ${hospitalCondition} ${bloodTypeCondition} ${rhFactorCondition} ${expirationCondition}`
-      .replace(/AND\s*$/, "")
-      .trim()
-    const finalWhereClause = whereClause === "WHERE" ? "" : whereClause
+    if (bloodType) {
+      conditions.push(`blood_type = '${bloodType}'`)
+    }
+
+    if (rhFactor) {
+      conditions.push(`rh = '${rhFactor}'`)
+    }
+
+    if (expirationStatus === "valid") {
+      conditions.push("expiration_date > CURRENT_DATE")
+    } else if (expirationStatus === "expired") {
+      conditions.push("expiration_date <= CURRENT_DATE")
+    }
+
+    // Construct the WHERE clause
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""
 
     // Get raw inventory data with filters
-    const rawInventory = await dbClient`
+    // Using tagged template literals correctly
+    const rawInventoryQuery = `
       SELECT rb.*, h.hospital_name
       FROM redblood_inventory rb
       JOIN hospital h ON rb.hospital_id = h.hospital_id
-      ${finalWhereClause ? dbClient.raw(finalWhereClause) : dbClient.raw("")}
+      ${whereClause}
       ORDER BY expiration_date DESC
       LIMIT ${limit}
     `
+    const rawInventory = await dbClient.query(rawInventoryQuery)
 
     // Get aggregated data with filters for non-expired blood
-    const validWhereClause = `${finalWhereClause} ${finalWhereClause ? "AND" : "WHERE"} expiration_date > CURRENT_DATE`
+    const validConditions = [...conditions]
+    if (expirationStatus !== "expired") {
+      // If we're not already filtering for expired only, add the valid condition
+      if (!validConditions.some((c) => c.includes("expiration_date"))) {
+        validConditions.push("expiration_date > CURRENT_DATE")
+      }
+    }
+    const validWhereClause = validConditions.length > 0 ? `WHERE ${validConditions.join(" AND ")}` : ""
 
-    const aggregatedData = await dbClient`
+    const aggregatedDataQuery = `
       SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
       FROM redblood_inventory
-      ${validWhereClause ? dbClient.raw(validWhereClause) : dbClient.raw("WHERE expiration_date > CURRENT_DATE")}
+      ${validWhereClause}
       GROUP BY blood_type, rh
       ORDER BY blood_type, rh
     `
+    const aggregatedData = await dbClient.query(aggregatedDataQuery)
 
     // Get expired data with filters
-    const expiredWhereClause = `${finalWhereClause} ${finalWhereClause ? "AND" : "WHERE"} expiration_date <= CURRENT_DATE`
+    const expiredConditions = [...conditions.filter((c) => !c.includes("expiration_date"))]
+    expiredConditions.push("expiration_date <= CURRENT_DATE")
+    const expiredWhereClause = expiredConditions.length > 0 ? `WHERE ${expiredConditions.join(" AND ")}` : ""
 
-    const expiredData = await dbClient`
+    const expiredDataQuery = `
       SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
       FROM redblood_inventory
-      ${expiredWhereClause ? dbClient.raw(expiredWhereClause) : dbClient.raw("WHERE expiration_date <= CURRENT_DATE")}
+      ${expiredWhereClause}
       GROUP BY blood_type, rh
       ORDER BY blood_type, rh
     `
+    const expiredData = await dbClient.query(expiredDataQuery)
 
     // Get total counts with filters
-    const totalCounts = await dbClient`
+    const totalCountsQuery = `
       SELECT 
         COUNT(*) as total_count,
         SUM(amount) as total_amount,
         COUNT(*) FILTER (WHERE expiration_date > CURRENT_DATE) as valid_count,
         SUM(amount) FILTER (WHERE expiration_date > CURRENT_DATE) as valid_amount
       FROM redblood_inventory
-      ${finalWhereClause ? dbClient.raw(finalWhereClause) : dbClient.raw("")}
+      ${whereClause}
     `
+    const totalCounts = await dbClient.query(totalCountsQuery)
 
     // Get available hospitals for the filter dropdown
-    const hospitals = await dbClient`
+    const hospitalsQuery = `
       SELECT DISTINCT h.hospital_id, h.hospital_name
       FROM redblood_inventory rb
       JOIN hospital h ON rb.hospital_id = h.hospital_id
       ORDER BY h.hospital_name
     `
+    const hospitals = await dbClient.query(hospitalsQuery)
 
     return {
       success: true,

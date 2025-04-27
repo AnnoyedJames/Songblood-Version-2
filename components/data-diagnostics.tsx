@@ -76,6 +76,7 @@ export default function DataDiagnostics() {
       const data = await response.json()
 
       if (data.success) {
+        console.log("Diagnostic data received:", data.data)
         setDiagnosticData(data.data)
       } else {
         setError(data.error || "Unknown error occurred")
@@ -208,8 +209,8 @@ export default function DataDiagnostics() {
                 Blood Type
               </Label>
               <Select
-                value={filters.bloodType || ""}
-                onValueChange={(value) => handleFilterChange("bloodType", value || null)}
+                value={filters.bloodType || "all"}
+                onValueChange={(value) => handleFilterChange("bloodType", value === "all" ? null : value)}
               >
                 <SelectTrigger id="blood-type-filter">
                   <SelectValue placeholder="All Blood Types" />
@@ -230,8 +231,8 @@ export default function DataDiagnostics() {
                 Rh Factor
               </Label>
               <Select
-                value={filters.rhFactor || ""}
-                onValueChange={(value) => handleFilterChange("rhFactor", value || null)}
+                value={filters.rhFactor || "all"}
+                onValueChange={(value) => handleFilterChange("rhFactor", value === "all" ? null : value)}
               >
                 <SelectTrigger id="rh-factor-filter">
                   <SelectValue placeholder="All Rh Factors" />
@@ -327,7 +328,7 @@ export default function DataDiagnostics() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {diagnosticData.aggregatedData.length === 0 ? (
+                      {!diagnosticData.aggregatedData || diagnosticData.aggregatedData.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={3} className="text-center text-muted-foreground">
                             No data available
@@ -365,7 +366,7 @@ export default function DataDiagnostics() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {diagnosticData.expiredData.length === 0 ? (
+                      {!diagnosticData.expiredData || diagnosticData.expiredData.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={3} className="text-center text-muted-foreground">
                             No expired data
@@ -410,7 +411,7 @@ export default function DataDiagnostics() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {diagnosticData.aggregatedData.length === 0 ? (
+                      {!diagnosticData.aggregatedData || diagnosticData.aggregatedData.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center text-muted-foreground">
                             No data available
@@ -426,7 +427,8 @@ export default function DataDiagnostics() {
                               {Number(item.total_amount).toLocaleString()} ml
                             </TableCell>
                             <TableCell className="text-right">
-                              {(Number(item.total_amount) / Number(item.count)).toFixed(0)} ml
+                              {Number(item.count) > 0 ? (Number(item.total_amount) / Number(item.count)).toFixed(0) : 0}{" "}
+                              ml
                             </TableCell>
                           </TableRow>
                         ))
@@ -450,7 +452,7 @@ export default function DataDiagnostics() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {diagnosticData.expiredData.length === 0 ? (
+                      {!diagnosticData.expiredData || diagnosticData.expiredData.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center text-muted-foreground">
                             No expired data
@@ -466,7 +468,8 @@ export default function DataDiagnostics() {
                               {Number(item.total_amount).toLocaleString()} ml
                             </TableCell>
                             <TableCell className="text-right">
-                              {(Number(item.total_amount) / Number(item.count)).toFixed(0)} ml
+                              {Number(item.count) > 0 ? (Number(item.total_amount) / Number(item.count)).toFixed(0) : 0}{" "}
+                              ml
                             </TableCell>
                           </TableRow>
                         ))
@@ -496,7 +499,7 @@ export default function DataDiagnostics() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {diagnosticData.rawInventory.length === 0 ? (
+                    {!diagnosticData.rawInventory || diagnosticData.rawInventory.length === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={filters.showAllHospitals ? 7 : 6}
@@ -536,7 +539,7 @@ export default function DataDiagnostics() {
                   </TableBody>
                 </Table>
               </div>
-              {diagnosticData.rawInventory.length > 0 && (
+              {diagnosticData.rawInventory && diagnosticData.rawInventory.length > 0 && (
                 <div className="mt-2 text-sm text-muted-foreground">
                   Showing {diagnosticData.rawInventory.length} records.{" "}
                   {diagnosticData.totalCounts?.total_count > diagnosticData.rawInventory.length &&

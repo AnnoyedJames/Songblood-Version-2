@@ -24,6 +24,15 @@ export async function GET(request: Request) {
     const expirationStatus = (url.searchParams.get("expirationStatus") as "all" | "valid" | "expired") || "all"
     const limit = Number.parseInt(url.searchParams.get("limit") || "100", 10)
 
+    console.log("Diagnostic API request with filters:", {
+      hospitalId: Number(hospitalId),
+      showAllHospitals,
+      bloodType,
+      rhFactor,
+      expirationStatus,
+      limit,
+    })
+
     // Run diagnostics with filters
     const diagnosticResults = await diagnoseRedBloodInventory({
       hospitalId: Number(hospitalId),
