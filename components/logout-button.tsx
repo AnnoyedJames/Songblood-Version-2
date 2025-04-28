@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 type LogoutButtonProps = {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
@@ -12,10 +13,10 @@ type LogoutButtonProps = {
   mobile?: boolean
 }
 
-// Changed from default export to named export
 export function LogoutButton({ variant = "ghost", size = "sm", className = "", mobile = false }: LogoutButtonProps) {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const { toast } = useToast()
 
   async function handleLogout() {
     if (isLoggingOut) return // Prevent multiple clicks
@@ -23,6 +24,13 @@ export function LogoutButton({ variant = "ghost", size = "sm", className = "", m
     setIsLoggingOut(true)
 
     try {
+      // Immediately show a toast notification
+      toast({
+        title: "Logging out...",
+        description: "Please wait while we log you out.",
+        variant: "default",
+      })
+
       // Send logout request to the API
       const response = await fetch("/api/logout", {
         method: "POST",
@@ -30,33 +38,33 @@ export function LogoutButton({ variant = "ghost", size = "sm", className = "", m
           "Content-Type": "application/json",
         },
         credentials: "include", // Important for cookies
-        redirect: "follow", // Follow redirects automatically
       })
 
-      if (response.redirected) {
-        // If the server responded with a redirect, follow it
-        window.location.href = response.url
-      } else if (response.ok) {
-        // If the API call was successful but no redirect, manually redirect
-        // Clear cookies on the client side as well for redundancy
-        document.cookie = "adminId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
-        document.cookie = "hospitalId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
-        document.cookie = "adminUsername=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
-        document.cookie = "adminPassword=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
-        document.cookie = "fallbackMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
-        document.cookie = "sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+      // Clear cookies on the client side for redundancy
+      document.cookie = "adminId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+      document.cookie = "hospitalId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+      document.cookie = "adminUsername=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+      document.cookie = "adminPassword=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+      document.cookie = "fallbackMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+      document.cookie = "sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
 
-        // Redirect to login page
+      // Immediately redirect to login page
+      router.push("/login?reason=logout-success")
+
+      // Force a hard navigation to ensure all state is cleared
+      setTimeout(() => {
         window.location.href = "/login?reason=logout-success"
-      } else {
-        console.error("Logout failed:", response.statusText)
-        // Even if the API call fails, try to redirect to login
-        window.location.href = "/login?reason=error"
-      }
+      }, 100)
     } catch (error) {
       console.error("Logout error:", error)
-      // Even if there's an error, try to redirect to login
-      window.location.href = "/login?reason=error"
+
+      // Even if there's an error, redirect to login
+      router.push("/login?reason=error")
+
+      // Force a hard navigation as fallback
+      setTimeout(() => {
+        window.location.href = "/login?reason=error"
+      }, 100)
     } finally {
       setIsLoggingOut(false)
     }
