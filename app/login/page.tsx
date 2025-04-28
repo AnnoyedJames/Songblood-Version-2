@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import LoginForm from "./login-form"
 import DbConnectionStatus from "@/components/db-connection-status"
 import RedirectHandler from "@/components/redirect-handler"
+import FallbackModeIndicator from "@/components/fallback-mode-indicator"
 
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
@@ -37,6 +38,7 @@ export default async function LoginPage({
           )}
         </div>
 
+        <FallbackModeIndicator />
         {redirectReason && <RedirectHandler reason={redirectReason} />}
         <DbConnectionStatus />
         <LoginForm />

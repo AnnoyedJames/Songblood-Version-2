@@ -132,7 +132,7 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
       // Handle fetch errors specifically
       const errorMessage =
         fetchError instanceof Error
-          ? `Error connecting to database: ${fetchError.message}`
+          ? `Database connection error: ${fetchError.message}`
           : "Failed to connect to database"
 
       CONNECTION_ERROR_MESSAGE = errorMessage

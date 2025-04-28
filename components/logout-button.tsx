@@ -30,31 +30,33 @@ export function LogoutButton({ variant = "ghost", size = "sm", className = "", m
           "Content-Type": "application/json",
         },
         credentials: "include", // Important for cookies
+        redirect: "follow", // Follow redirects automatically
       })
 
-      if (response.ok) {
-        // If the API call was successful, clear cookies on the client side as well for redundancy
+      if (response.redirected) {
+        // If the server responded with a redirect, follow it
+        window.location.href = response.url
+      } else if (response.ok) {
+        // If the API call was successful but no redirect, manually redirect
+        // Clear cookies on the client side as well for redundancy
         document.cookie = "adminId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
         document.cookie = "hospitalId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
-        document.cookie = "fallbackMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
         document.cookie = "adminUsername=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
         document.cookie = "adminPassword=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
+        document.cookie = "fallbackMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
         document.cookie = "sessionToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict"
 
         // Redirect to login page
-        router.push("/login?reason=logout-success")
-        router.refresh()
+        window.location.href = "/login?reason=logout-success"
       } else {
         console.error("Logout failed:", response.statusText)
-
         // Even if the API call fails, try to redirect to login
-        router.push("/login")
+        window.location.href = "/login?reason=error"
       }
     } catch (error) {
       console.error("Logout error:", error)
-
       // Even if there's an error, try to redirect to login
-      router.push("/login")
+      window.location.href = "/login?reason=error"
     } finally {
       setIsLoggingOut(false)
     }

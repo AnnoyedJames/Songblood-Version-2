@@ -12,6 +12,7 @@ export default function DbConnectionStatus() {
 
   useEffect(() => {
     let isMounted = true
+    const abortController = new AbortController()
 
     async function checkConnection() {
       try {
@@ -24,6 +25,14 @@ export default function DbConnectionStatus() {
             Pragma: "no-cache",
             Expires: "0",
           },
+          signal: abortController.signal,
+        }).catch((err) => {
+          // Handle fetch errors (network issues, etc.)
+          if (isMounted) {
+            setStatus("error")
+            setErrorMessage("Network error: Unable to check database connection")
+          }
+          throw err
         })
 
         // Check if component is still mounted before updating state
@@ -31,7 +40,7 @@ export default function DbConnectionStatus() {
 
         if (!response.ok) {
           setStatus("error")
-          setErrorMessage("Failed to check database connection")
+          setErrorMessage(`Failed to check database connection: ${response.statusText}`)
           return
         }
 
@@ -49,7 +58,7 @@ export default function DbConnectionStatus() {
 
         console.error("Error checking database connection:", error)
         setStatus("error")
-        setErrorMessage("Failed to check database connection")
+        setErrorMessage(error instanceof Error ? error.message : "Failed to check database connection")
       }
     }
 
@@ -59,6 +68,7 @@ export default function DbConnectionStatus() {
     // Cleanup function to prevent memory leaks
     return () => {
       isMounted = false
+      abortController.abort()
     }
   }, [retryCount])
 
@@ -84,7 +94,9 @@ export default function DbConnectionStatus() {
         <AlertTitle>Database Connection Issue</AlertTitle>
         <AlertDescription className="flex flex-col">
           <span>{errorMessage}</span>
-          <span className="mt-1">Please contact your administrator if this issue persists.</span>
+          <span className="mt-1">
+            You can continue with limited functionality. Some features may not work properly.
+          </span>
           <Button variant="outline" size="sm" className="mt-2 w-full sm:w-auto" onClick={handleRetry}>
             Retry connection check
           </Button>
