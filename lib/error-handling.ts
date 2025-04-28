@@ -5,7 +5,10 @@ export enum ErrorType {
   NOT_FOUND = "NOT_FOUND",
   VALIDATION = "VALIDATION",
   SERVER = "SERVER",
-  NAVIGATION = "NAVIGATION", // Added for redirect errors
+  NAVIGATION = "NAVIGATION",
+  TIMEOUT = "TIMEOUT",
+  RATE_LIMIT = "RATE_LIMIT",
+  CONFLICT = "CONFLICT",
 }
 
 // Error messages for users
@@ -16,17 +19,22 @@ export const ErrorMessages = {
   [ErrorType.VALIDATION]: "Please check your input and try again.",
   [ErrorType.SERVER]: "An unexpected error occurred. Please try again later.",
   [ErrorType.NAVIGATION]: "Navigation error. Please try again or return to the home page.",
+  [ErrorType.TIMEOUT]: "The operation timed out. Please try again later.",
+  [ErrorType.RATE_LIMIT]: "Too many requests. Please try again later.",
+  [ErrorType.CONFLICT]: "A conflict occurred with your request. Please refresh and try again.",
 }
 
 // Error class for application errors
 export class AppError extends Error {
   type: ErrorType
   details?: string
+  retryable?: boolean
 
-  constructor(type: ErrorType, message?: string, details?: string) {
+  constructor(type: ErrorType, message?: string, details?: string, retryable?: boolean) {
     super(message || ErrorMessages[type])
     this.type = type
     this.details = details
+    this.retryable = retryable
     this.name = "AppError"
   }
 }
@@ -53,19 +61,78 @@ export function logError(error: unknown, context?: string): AppError {
       return new AppError(ErrorType.NAVIGATION, "Navigation error", error.message)
     }
 
-    // Convert to AppError with appropriate type
+    // Check for timeout errors
+    if (error.message.includes("timeout") || error.message.includes("timed out")) {
+      return new AppError(ErrorType.TIMEOUT, "Operation timed out", error.message, true)
+    }
+
+    // Check for rate limit errors
+    if (error.message.includes("rate limit") || error.message.includes("too many requests")) {
+      return new AppError(ErrorType.RATE_LIMIT, "Rate limit exceeded", error.message, true)
+    }
+
+    // Check for database connection errors
     if (
       error.message.includes("Failed to fetch") ||
       error.message.includes("connection") ||
-      error.message.includes("ECONNREFUSED")
+      error.message.includes("ECONNREFUSED") ||
+      error.message.includes("database")
     ) {
-      return new AppError(ErrorType.DATABASE_CONNECTION, undefined, error.message)
+      return new AppError(ErrorType.DATABASE_CONNECTION, "Database connection error", error.message, true)
     }
 
-    return new AppError(ErrorType.SERVER, undefined, error.message)
+    // Check for validation errors
+    if (
+      error.message.includes("validation") ||
+      error.message.includes("invalid") ||
+      error.message.includes("required")
+    ) {
+      return new AppError(ErrorType.VALIDATION, "Validation error", error.message, false)
+    }
+
+    return new AppError(ErrorType.SERVER, undefined, error.message, true)
   }
 
   // Handle unknown errors
   console.error(`${prefix}Unknown error:`, error)
-  return new AppError(ErrorType.SERVER, undefined, String(error))
+  return new AppError(ErrorType.SERVER, undefined, String(error), true)
+}
+
+// Function to determine if an error is retryable
+export function isRetryableError(error: unknown): boolean {
+  if (error instanceof AppError) {
+    return (
+      error.retryable === true ||
+      error.type === ErrorType.DATABASE_CONNECTION ||
+      error.type === ErrorType.TIMEOUT ||
+      error.type === ErrorType.RATE_LIMIT ||
+      error.type === ErrorType.SERVER
+    )
+  }
+
+  // By default, consider unknown errors as retryable
+  return true
+}
+
+// Function to get a user-friendly error message
+export function getUserFriendlyErrorMessage(error: unknown): string {
+  if (error instanceof AppError) {
+    return error.message
+  }
+
+  if (error instanceof Error) {
+    // Try to extract a user-friendly message from the error
+    if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+      return "Network connection error. Please check your internet connection and try again."
+    }
+
+    if (error.message.includes("timeout") || error.message.includes("timed out")) {
+      return "The operation took too long to complete. Please try again later."
+    }
+
+    // For other errors, return a generic message
+    return "An unexpected error occurred. Please try again later."
+  }
+
+  return "An unknown error occurred. Please try again later."
 }

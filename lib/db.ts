@@ -484,23 +484,109 @@ export async function addNewPlasmaBag(
   adminPassword: string,
 ) {
   try {
-    // Use tagged template literal syntax
-    await dbClient`
-      SELECT Add_New_PlasmaBag(
-        ${donorName},
-        ${amount},
-        ${hospitalId},
-        ${expirationDate}::date,
-        ${bloodType},
-        ${adminUsername},
-        ${adminPassword}
-      )
-    `
-    // Invalidate relevant caches
-    queryCache.invalidate(`plasma:${hospitalId}`)
-    return { success: true }
+    // Check database connection first
+    const isConnected = await checkDatabaseConnection()
+    if (!isConnected) {
+      return {
+        success: false,
+        error: "Database connection error",
+        type: ErrorType.DATABASE_CONNECTION,
+        details: "Unable to connect to the database. Please try again later.",
+        retryable: true,
+      }
+    }
+
+    // Validate admin credentials
+    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
+    if (!adminCheck) {
+      return {
+        success: false,
+        error: "Authentication failed",
+        type: ErrorType.AUTHENTICATION,
+        details: "Your session has expired or is invalid. Please log in again.",
+        retryable: false,
+      }
+    }
+
+    // Check if the admin belongs to the specified hospital
+    if (adminCheck.hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "Unauthorized hospital access",
+        type: ErrorType.AUTHENTICATION,
+        details: "You don't have permission to add entries for this hospital.",
+        retryable: false,
+      }
+    }
+
+    // Use tagged template literal syntax with error handling
+    try {
+      await dbClient`
+        SELECT Add_New_PlasmaBag(
+          ${donorName},
+          ${amount},
+          ${hospitalId},
+          ${expirationDate}::date,
+          ${bloodType},
+          ${adminUsername},
+          ${adminPassword}
+        )
+      `
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`plasma:${hospitalId}`)
+      return { success: true }
+    } catch (dbError: any) {
+      // Handle specific database errors
+      if (dbError.message?.includes("duplicate key")) {
+        return {
+          success: false,
+          error: "Duplicate entry",
+          type: ErrorType.VALIDATION,
+          details: "A plasma bag with this information already exists.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("violates foreign key constraint")) {
+        return {
+          success: false,
+          error: "Invalid reference",
+          type: ErrorType.VALIDATION,
+          details: "One of the referenced values (like hospital ID) is invalid.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("out of range")) {
+        return {
+          success: false,
+          error: "Value out of range",
+          type: ErrorType.VALIDATION,
+          details: "One of the provided values is out of the acceptable range.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("connection")) {
+        return {
+          success: false,
+          error: "Database connection lost",
+          type: ErrorType.DATABASE_CONNECTION,
+          details: "The connection to the database was lost. Please try again.",
+          retryable: true,
+        }
+      }
+
+      // For other database errors
+      throw dbError
+    }
   } catch (error) {
-    throw logError(error, "Add Plasma Bag")
+    // Convert to AppError and log
+    const appError = logError(error, "Add Plasma Bag")
+
+    // Return appropriate error response
+    return {
+      success: false,
+      error: appError.message || "Failed to add plasma bag",
+      type: appError.type,
+      details: appError.details || "An unexpected error occurred while processing your request.",
+      retryable: appError.type === ErrorType.DATABASE_CONNECTION || appError.type === ErrorType.SERVER,
+    }
   }
 }
 
@@ -516,24 +602,110 @@ export async function addNewPlateletsBag(
   adminPassword: string,
 ) {
   try {
-    // Use tagged template literal syntax
-    await dbClient`
-      SELECT Add_New_PlateletsBag(
-        ${donorName},
-        ${amount},
-        ${hospitalId},
-        ${expirationDate}::date,
-        ${bloodType},
-        ${rh},
-        ${adminUsername},
-        ${adminPassword}
-      )
-    `
-    // Invalidate relevant caches
-    queryCache.invalidate(`platelets:${hospitalId}`)
-    return { success: true }
+    // Check database connection first
+    const isConnected = await checkDatabaseConnection()
+    if (!isConnected) {
+      return {
+        success: false,
+        error: "Database connection error",
+        type: ErrorType.DATABASE_CONNECTION,
+        details: "Unable to connect to the database. Please try again later.",
+        retryable: true,
+      }
+    }
+
+    // Validate admin credentials
+    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
+    if (!adminCheck) {
+      return {
+        success: false,
+        error: "Authentication failed",
+        type: ErrorType.AUTHENTICATION,
+        details: "Your session has expired or is invalid. Please log in again.",
+        retryable: false,
+      }
+    }
+
+    // Check if the admin belongs to the specified hospital
+    if (adminCheck.hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "Unauthorized hospital access",
+        type: ErrorType.AUTHENTICATION,
+        details: "You don't have permission to add entries for this hospital.",
+        retryable: false,
+      }
+    }
+
+    // Use tagged template literal syntax with error handling
+    try {
+      await dbClient`
+        SELECT Add_New_PlateletsBag(
+          ${donorName},
+          ${amount},
+          ${hospitalId},
+          ${expirationDate}::date,
+          ${bloodType},
+          ${rh},
+          ${adminUsername},
+          ${adminPassword}
+        )
+      `
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`platelets:${hospitalId}`)
+      return { success: true }
+    } catch (dbError: any) {
+      // Handle specific database errors
+      if (dbError.message?.includes("duplicate key")) {
+        return {
+          success: false,
+          error: "Duplicate entry",
+          type: ErrorType.VALIDATION,
+          details: "A platelets bag with this information already exists.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("violates foreign key constraint")) {
+        return {
+          success: false,
+          error: "Invalid reference",
+          type: ErrorType.VALIDATION,
+          details: "One of the referenced values (like hospital ID) is invalid.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("out of range")) {
+        return {
+          success: false,
+          error: "Value out of range",
+          type: ErrorType.VALIDATION,
+          details: "One of the provided values is out of the acceptable range.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("connection")) {
+        return {
+          success: false,
+          error: "Database connection lost",
+          type: ErrorType.DATABASE_CONNECTION,
+          details: "The connection to the database was lost. Please try again.",
+          retryable: true,
+        }
+      }
+
+      // For other database errors
+      throw dbError
+    }
   } catch (error) {
-    throw logError(error, "Add Platelets Bag")
+    // Convert to AppError and log
+    const appError = logError(error, "Add Platelets Bag")
+
+    // Return appropriate error response
+    return {
+      success: false,
+      error: appError.message || "Failed to add platelets bag",
+      type: appError.type,
+      details: appError.details || "An unexpected error occurred while processing your request.",
+      retryable: appError.type === ErrorType.DATABASE_CONNECTION || appError.type === ErrorType.SERVER,
+    }
   }
 }
 
@@ -549,24 +721,110 @@ export async function addNewRedBloodBag(
   adminPassword: string,
 ) {
   try {
-    // Use tagged template literal syntax
-    await dbClient`
-      SELECT Add_New_RedBloodBag(
-        ${donorName},
-        ${amount},
-        ${hospitalId},
-        ${expirationDate}::date,
-        ${bloodType},
-        ${rh},
-        ${adminUsername},
-        ${adminPassword}
-      )
-    `
-    // Invalidate relevant caches
-    queryCache.invalidate(`redblood:${hospitalId}`)
-    return { success: true }
+    // Check database connection first
+    const isConnected = await checkDatabaseConnection()
+    if (!isConnected) {
+      return {
+        success: false,
+        error: "Database connection error",
+        type: ErrorType.DATABASE_CONNECTION,
+        details: "Unable to connect to the database. Please try again later.",
+        retryable: true,
+      }
+    }
+
+    // Validate admin credentials
+    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
+    if (!adminCheck) {
+      return {
+        success: false,
+        error: "Authentication failed",
+        type: ErrorType.AUTHENTICATION,
+        details: "Your session has expired or is invalid. Please log in again.",
+        retryable: false,
+      }
+    }
+
+    // Check if the admin belongs to the specified hospital
+    if (adminCheck.hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "Unauthorized hospital access",
+        type: ErrorType.AUTHENTICATION,
+        details: "You don't have permission to add entries for this hospital.",
+        retryable: false,
+      }
+    }
+
+    // Use tagged template literal syntax with error handling
+    try {
+      await dbClient`
+        SELECT Add_New_RedBloodBag(
+          ${donorName},
+          ${amount},
+          ${hospitalId},
+          ${expirationDate}::date,
+          ${bloodType},
+          ${rh},
+          ${adminUsername},
+          ${adminPassword}
+        )
+      `
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`redblood:${hospitalId}`)
+      return { success: true }
+    } catch (dbError: any) {
+      // Handle specific database errors
+      if (dbError.message?.includes("duplicate key")) {
+        return {
+          success: false,
+          error: "Duplicate entry",
+          type: ErrorType.VALIDATION,
+          details: "A blood bag with this information already exists.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("violates foreign key constraint")) {
+        return {
+          success: false,
+          error: "Invalid reference",
+          type: ErrorType.VALIDATION,
+          details: "One of the referenced values (like hospital ID) is invalid.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("out of range")) {
+        return {
+          success: false,
+          error: "Value out of range",
+          type: ErrorType.VALIDATION,
+          details: "One of the provided values is out of the acceptable range.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("connection")) {
+        return {
+          success: false,
+          error: "Database connection lost",
+          type: ErrorType.DATABASE_CONNECTION,
+          details: "The connection to the database was lost. Please try again.",
+          retryable: true,
+        }
+      }
+
+      // For other database errors
+      throw dbError
+    }
   } catch (error) {
-    throw logError(error, "Add Red Blood Cell Bag")
+    // Convert to AppError and log
+    const appError = logError(error, "Add Red Blood Cell Bag")
+
+    // Return appropriate error response
+    return {
+      success: false,
+      error: appError.message || "Failed to add red blood cell bag",
+      type: appError.type,
+      details: appError.details || "An unexpected error occurred while processing your request.",
+      retryable: appError.type === ErrorType.DATABASE_CONNECTION || appError.type === ErrorType.SERVER,
+    }
   }
 }
 

@@ -4,6 +4,8 @@ import LoginForm from "./login-form"
 import DbConnectionStatus from "@/components/db-connection-status"
 import RedirectHandler from "@/components/redirect-handler"
 import FallbackModeIndicator from "@/components/fallback-mode-indicator"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
@@ -44,12 +46,9 @@ export default async function LoginPage({
         <LoginForm />
 
         <div className="mt-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Need an account?{" "}
-            <a href="/register" className="text-primary hover:underline">
-              Register here
-            </a>
-          </p>
+          <Button variant="outline" asChild className="w-full">
+            <Link href="/register">Don't have an account? Register</Link>
+          </Button>
         </div>
       </div>
     </div>
