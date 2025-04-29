@@ -42,7 +42,7 @@ let CONNECTION_ERROR_MESSAGE = ""
 
 // Create a SQL client with proper error handling
 // Initialize the neon client once
-const dbClient = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
+export const dbClient = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
 export const sql = async (query: string, ...args: any[]) => {
   try {

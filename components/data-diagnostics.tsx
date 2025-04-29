@@ -4,13 +4,15 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, RefreshCw, Filter, X } from "lucide-react"
+import { AlertCircle, RefreshCw, Filter, X, Pencil, Trash2 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatBloodType, getBloodTypeColor } from "@/lib/utils"
+import { ConfirmationDialog } from "./confirmation-dialog"
+import { EditEntryDialog } from "./edit-entry-dialog"
 
 type DiagnosticFilters = {
   showAllHospitals: boolean
@@ -32,6 +34,10 @@ export default function DataDiagnostics() {
     rhFactor: null,
     expirationStatus: "valid",
   })
+
+  const [selectedEntry, setSelectedEntry] = useState<any>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Function to build query string from filters
   const buildQueryString = (filters: DiagnosticFilters) => {
@@ -110,6 +116,66 @@ export default function DataDiagnostics() {
       ...prev,
       [key]: value,
     }))
+  }
+
+  const handleEditEntry = (entry: any) => {
+    setSelectedEntry(entry)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleDeleteEntry = async (bagId: number, entryType: string) => {
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/diagnostics/delete-entry`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ bagId, entryType }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Refresh the data after successful deletion
+        runDiagnostics()
+      } else {
+        setError(data.error || "Failed to delete entry")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete entry")
+      console.error("Delete entry error:", err)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleSaveEntry = async (updatedEntry: any) => {
+    try {
+      const response = await fetch(`/api/diagnostics/update-entry`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedEntry),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Refresh the data after successful update
+        runDiagnostics()
+        return { success: true }
+      } else {
+        return { success: false, message: data.error || "Failed to update entry" }
+      }
+    } catch (err) {
+      console.error("Update entry error:", err)
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : "Failed to update entry",
+      }
+    }
   }
 
   if (error) {
@@ -496,6 +562,7 @@ export default function DataDiagnostics() {
                       <TableHead>Expiration Date</TableHead>
                       {filters.showAllHospitals && <TableHead>Hospital</TableHead>}
                       <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -512,6 +579,7 @@ export default function DataDiagnostics() {
                       diagnosticData.rawInventory.map((item: any) => {
                         const expirationDate = new Date(item.expiration_date)
                         const isExpired = expirationDate < new Date(diagnosticData.currentDate)
+                        const canEdit = !filters.showAllHospitals || (filters.showAllHospitals && item.is_own_hospital)
 
                         return (
                           <TableRow key={item.bag_id}>
@@ -532,6 +600,37 @@ export default function DataDiagnostics() {
                                 {isExpired ? "Expired" : "Valid"}
                               </span>
                             </TableCell>
+                            <TableCell>
+                              {canEdit && (
+                                <div className="flex space-x-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleEditEntry(item)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                    <span className="sr-only">Edit</span>
+                                  </Button>
+                                  <ConfirmationDialog
+                                    title="Delete Blood Entry"
+                                    description={`Are you sure you want to delete the ${item.type} bag #${item.bag_id}? This action cannot be undone.`}
+                                    actionLabel="Delete"
+                                    onConfirm={() => handleDeleteEntry(item.bag_id, item.type)}
+                                    trigger={
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-red-500 hover:text-red-700"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Delete</span>
+                                      </Button>
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </TableCell>
                           </TableRow>
                         )
                       })
@@ -550,6 +649,14 @@ export default function DataDiagnostics() {
           </TabsContent>
         </Tabs>
       </CardContent>
+      {selectedEntry && (
+        <EditEntryDialog
+          entry={selectedEntry}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSave={handleSaveEntry}
+        />
+      )}
     </Card>
   )
 }

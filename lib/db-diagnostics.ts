@@ -1,5 +1,7 @@
 import { neon } from "@neondatabase/serverless"
 import { logError } from "./error-handling"
+import { dbClient } from "./db"
+import { queryCache } from "./cache"
 
 type DiagnosticFilters = {
   hospitalId: number
@@ -150,6 +152,196 @@ export async function diagnoseRedBloodInventory(filters: DiagnosticFilters) {
       success: false,
       error: errorMessage,
       data: null,
+    }
+  }
+}
+
+interface UpdateBloodEntryParams {
+  bagId: number
+  entryType: string
+  donorName: string
+  amount: number
+  expirationDate: string
+  hospitalId: number
+}
+
+export async function updateBloodEntry({
+  bagId,
+  entryType,
+  donorName,
+  amount,
+  expirationDate,
+  hospitalId,
+}: UpdateBloodEntryParams) {
+  try {
+    // Verify that the entry belongs to the hospital
+    const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
+    if (!ownershipCheck.success) {
+      return ownershipCheck
+    }
+
+    // Format the expiration date
+    const formattedDate = new Date(expirationDate).toISOString().split("T")[0]
+
+    // Update the entry based on its type
+    let result
+    if (entryType === "RedBlood") {
+      result = await dbClient`
+        UPDATE redblood_inventory
+        SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`redblood:${hospitalId}`)
+    } else if (entryType === "Plasma") {
+      result = await dbClient`
+        UPDATE plasma_inventory
+        SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`plasma:${hospitalId}`)
+    } else if (entryType === "Platelets") {
+      result = await dbClient`
+        UPDATE platelets_inventory
+        SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`platelets:${hospitalId}`)
+    } else {
+      return {
+        success: false,
+        error: "Invalid entry type",
+      }
+    }
+
+    if (result && result.length > 0) {
+      return { success: true }
+    } else {
+      return {
+        success: false,
+        error: "Failed to update entry",
+      }
+    }
+  } catch (error) {
+    console.error("Error updating blood entry:", error)
+    const appError = logError(error, "Update Blood Entry")
+    return {
+      success: false,
+      error: appError.message,
+      details: appError.details,
+    }
+  }
+}
+
+export async function deleteBloodEntry(bagId: number, entryType: string, hospitalId: number) {
+  try {
+    // Verify that the entry belongs to the hospital
+    const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
+    if (!ownershipCheck.success) {
+      return ownershipCheck
+    }
+
+    // Delete the entry based on its type
+    let result
+    if (entryType === "RedBlood") {
+      result = await dbClient`
+        DELETE FROM redblood_inventory
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`redblood:${hospitalId}`)
+    } else if (entryType === "Plasma") {
+      result = await dbClient`
+        DELETE FROM plasma_inventory
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`plasma:${hospitalId}`)
+    } else if (entryType === "Platelets") {
+      result = await dbClient`
+        DELETE FROM platelets_inventory
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`platelets:${hospitalId}`)
+    } else {
+      return {
+        success: false,
+        error: "Invalid entry type",
+      }
+    }
+
+    if (result && result.length > 0) {
+      return { success: true }
+    } else {
+      return {
+        success: false,
+        error: "Failed to delete entry",
+      }
+    }
+  } catch (error) {
+    console.error("Error deleting blood entry:", error)
+    const appError = logError(error, "Delete Blood Entry")
+    return {
+      success: false,
+      error: appError.message,
+      details: appError.details,
+    }
+  }
+}
+
+async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId: number) {
+  try {
+    let result
+    if (entryType === "RedBlood") {
+      result = await dbClient`
+        SELECT hospital_id FROM redblood_inventory WHERE bag_id = ${bagId}
+      `
+    } else if (entryType === "Plasma") {
+      result = await dbClient`
+        SELECT hospital_id FROM plasma_inventory WHERE bag_id = ${bagId}
+      `
+    } else if (entryType === "Platelets") {
+      result = await dbClient`
+        SELECT hospital_id FROM platelets_inventory WHERE bag_id = ${bagId}
+      `
+    } else {
+      return {
+        success: false,
+        error: "Invalid entry type",
+      }
+    }
+
+    if (!result || result.length === 0) {
+      return {
+        success: false,
+        error: "Entry not found",
+      }
+    }
+
+    if (result[0].hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "You don't have permission to modify this entry",
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error verifying entry ownership:", error)
+    const appError = logError(error, "Verify Entry Ownership")
+    return {
+      success: false,
+      error: appError.message,
+      details: appError.details,
     }
   }
 }

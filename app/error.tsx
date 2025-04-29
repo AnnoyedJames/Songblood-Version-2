@@ -7,7 +7,6 @@ import { ServerCrash, RefreshCw, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { ErrorType } from "@/lib/error-handling"
 import { useRouter } from "next/navigation"
-import { isRedirectError, getRedirectUrl } from "@/lib/navigation"
 
 export default function Error({
   error,
@@ -24,16 +23,19 @@ export default function Error({
     // Log the error to an error reporting service
     console.error("Application error:", error)
 
-    // Handle redirect errors
-    if (isRedirectError(error)) {
-      const url = getRedirectUrl(error) || "/login?reason=error-redirect"
+    // Check if this is a redirect error by looking at the error message
+    if (error.message?.includes("NEXT_REDIRECT")) {
+      // Extract the URL from the error message if possible
+      const urlMatch = error.message.match(/url=([^,]+)/)
+      const url = urlMatch ? urlMatch[1] : "/login?reason=error-redirect"
+
       console.log("Handling redirect in error boundary:", url)
       setRedirectUrl(url)
       setRedirecting(true)
 
       // Use a timeout to allow the UI to update before redirecting
       const timer = setTimeout(() => {
-        router.push(url)
+        window.location.href = url // Use window.location for hard navigation
       }, 2000)
 
       return () => clearTimeout(timer)
@@ -43,13 +45,13 @@ export default function Error({
   // Check if this is a database connection error
   const isDatabaseError =
     error.type === ErrorType.DATABASE_CONNECTION ||
-    error.message.includes("database") ||
-    error.message.includes("connection") ||
-    error.message.includes("Failed to fetch")
+    error.message?.includes("database") ||
+    error.message?.includes("connection") ||
+    error.message?.includes("Failed to fetch")
 
   // Check if this is a navigation error
   const isNavigationError =
-    error.type === ErrorType.NAVIGATION || error.message.includes("navigation") || error.message.includes("route")
+    error.type === ErrorType.NAVIGATION || error.message?.includes("navigation") || error.message?.includes("route")
 
   if (redirecting) {
     return (

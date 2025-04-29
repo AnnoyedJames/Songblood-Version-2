@@ -72,11 +72,19 @@ export async function clearSession() {
 
 // Authentication middleware
 export async function requireAuth() {
-  const session = await getSession()
-  if (!session) {
-    throw new AppError(ErrorType.AUTHENTICATION, "Authentication required")
+  try {
+    const session = await getSession()
+    if (!session) {
+      throw new AppError(ErrorType.AUTHENTICATION, "Authentication required")
+    }
+    return session
+  } catch (error) {
+    // Convert any error to an authentication error for consistent handling
+    if (error instanceof AppError && error.type === ErrorType.AUTHENTICATION) {
+      throw error
+    }
+    throw new AppError(ErrorType.AUTHENTICATION, "Authentication failed", { cause: error })
   }
-  return session
 }
 
 // Login function

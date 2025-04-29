@@ -1,73 +1,39 @@
 import { redirect } from "next/navigation"
 import { AppError, ErrorType } from "./error-handling"
 
-/**
- * Enum for common redirect reasons
- */
-export enum RedirectReason {
-  SESSION_EXPIRED = "session-expired",
-  UNAUTHORIZED = "unauthorized",
-  NOT_FOUND = "not-found",
-  LOGIN_REQUIRED = "login-required",
-  LOGIN_SUCCESS = "login-success",
-  LOGOUT_SUCCESS = "logout-success",
-}
-
-/**
- * Safe redirect function that handles errors gracefully
- * @param path - The path to redirect to
- * @param reason - Optional reason for the redirect
- */
-export function safeRedirect(path: string, reason?: RedirectReason | string): never {
-  try {
-    // Construct URL with reason if provided
-    const url = reason ? `${path}?reason=${reason}` : path
-
-    // Log the redirect for debugging
-    console.log(`Redirecting to: ${url}`)
-
-    // Perform the redirect
-    redirect(url)
-  } catch (error) {
-    // If there's an error during redirect, throw a custom error
-    throw new AppError(
-      ErrorType.NAVIGATION,
-      "Navigation failed",
-      `Failed to redirect to ${path}: ${error instanceof Error ? error.message : String(error)}`,
-    )
-  }
-}
-
-/**
- * Check if an error is a Next.js redirect error
- * @param error - The error to check
- */
+// Function to check if an error is a redirect error
 export function isRedirectError(error: unknown): boolean {
   return (
     error instanceof Error &&
-    (error.message.includes("NEXT_REDIRECT") ||
-      error.message.includes("Redirect") ||
-      error.message.includes("redirect"))
+    (error.message?.includes("NEXT_REDIRECT") || error.message?.includes("redirect") || error.name === "RedirectError")
   )
 }
 
-/**
- * Extract the redirect URL from a Next.js redirect error
- * @param error - The redirect error
- */
-export function getRedirectUrl(error: Error): string | null {
+// Function to extract the redirect URL from an error
+export function getRedirectUrl(error: unknown): string | null {
+  if (!isRedirectError(error)) return null
+
+  // Try to extract the URL from the error message
+  const errorMessage = (error as Error).message || ""
+  const urlMatch = errorMessage.match(/url=([^,]+)/)
+
+  return urlMatch ? urlMatch[1] : null
+}
+
+// Safe redirect function that won't throw in an error boundary
+export function safeRedirect(url: string, type: "replace" | "push" = "replace") {
   try {
-    // Extract URL from error message
-    // Format is typically: "NEXT_REDIRECT;https://example.com"
-    if (error.message.includes("NEXT_REDIRECT")) {
-      const parts = error.message.split(";")
-      if (parts.length > 1) {
-        return parts[1]
-      }
+    redirect(url)
+  } catch (error) {
+    console.error("Redirect error:", error)
+    // Fallback to client-side navigation
+    if (typeof window !== "undefined") {
+      window.location.href = url
     }
-    return null
-  } catch (e) {
-    console.error("Failed to extract redirect URL:", e)
-    return null
   }
+}
+
+// Function to create a redirect error
+export function createRedirectError(url: string): AppError {
+  return new AppError(ErrorType.NAVIGATION, `Redirect to ${url}`, { redirectUrl: url })
 }

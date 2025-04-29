@@ -14,16 +14,25 @@ import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import DatabaseError from "@/components/database-error"
 import { AppError, ErrorType } from "@/lib/error-handling"
-import { isRedirectError } from "@/lib/navigation"
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
+import { redirect } from "next/navigation"
 
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
   try {
-    const session = await requireAuth()
+    // Check authentication first
+    let session
+    try {
+      session = await requireAuth()
+    } catch (authError) {
+      // Handle authentication errors by redirecting to login
+      console.log("Authentication error in dashboard:", authError)
+      redirect("/login?reason=login-required")
+    }
+
     const { hospitalId } = session
 
     try {
@@ -117,15 +126,11 @@ export default async function DashboardPage() {
         </div>
       )
     } catch (error) {
+      console.error("Dashboard data error:", error)
+
       // Handle database connection errors
       if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
         return <DatabaseError message="Unable to load dashboard data. Database connection failed." />
-      }
-
-      // Handle redirect errors
-      if (isRedirectError(error)) {
-        console.log("Handling redirect in dashboard page:", error.message)
-        throw error // Let Next.js handle the redirect
       }
 
       // Rethrow other errors to be handled by the error boundary
@@ -134,17 +139,11 @@ export default async function DashboardPage() {
   } catch (error) {
     console.error("Dashboard error:", error)
 
-    // If the error is a redirect, let it happen
-    if (isRedirectError(error)) {
-      console.log("Propagating redirect from dashboard page:", error.message)
-      throw error
-    }
-
     // Return a simple error message instead of redirecting
     return (
       <DatabaseError
         message="There was an error loading your session. Please try logging in again."
-        showHomeLink={false}
+        showHomeLink={true}
       />
     )
   }
