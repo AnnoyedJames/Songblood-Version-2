@@ -1,43 +1,29 @@
 import type React from "react"
 import "./globals.css"
-import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
-import ProgressBarWrapper from "@/components/progress-bar-wrapper"
-import { ToastProvider } from "@/components/ui/use-toast"
-import { SessionProvider } from "@/components/session-provider"
-import { cookies } from "next/headers"
+import { Toaster } from "@/components/ui/toast"
+import SessionProvider from "@/components/session-provider"
+import GlobalLogout from "@/components/global-logout"
+import SessionMonitor from "@/components/session-monitor"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Songblood - Hospital Blood Inventory Management",
-  description: "Admin portal for Bangkok hospitals to manage blood inventories",
-  generator: "v0.dev",
+export const metadata = {
+  title: "Songblood - Blood Inventory Management",
+  description: "Hospital blood inventory management system",
+    generator: 'v0.dev'
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
-  // Check if user is authenticated from cookies
-  const cookieStore = cookies()
-  const hasAdminId = cookieStore.has("adminId")
-  const hasHospitalId = cookieStore.has("hospitalId")
-  const initialAuth = hasAdminId && hasHospitalId
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen bg-gray-50`}>
-        <ThemeProvider attribute="class" defaultTheme="light">
-          <ToastProvider>
-            <SessionProvider initialAuth={initialAuth}>
-              <ProgressBarWrapper />
-              {children}
-            </SessionProvider>
-          </ToastProvider>
-        </ThemeProvider>
+      <body className={inter.className}>
+        <SessionProvider>
+          <GlobalLogout />
+          <SessionMonitor />
+          {children}
+          <Toaster />
+        </SessionProvider>
       </body>
     </html>
   )

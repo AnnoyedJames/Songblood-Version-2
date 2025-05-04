@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ErrorType } from "@/lib/error-handling"
+import { useToast } from "@/components/ui/use-toast"
+import { useSessionTimeout } from "@/lib/session-timeout"
 
 type AddEntryFormProps = {
   hospitalId: number
@@ -31,6 +33,7 @@ type ApiErrorResponse = {
 
 export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [errorType, setErrorType] = useState<ErrorType | null>(null)
@@ -39,6 +42,8 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
   const [isRetryable, setIsRetryable] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [success, setSuccess] = useState("")
+  const [activeTab, setActiveTab] = useState("redblood")
+  const formRef = useRef<HTMLFormElement>(null)
 
   // Red blood cell form state
   const [redBloodForm, setRedBloodForm] = useState({
@@ -65,6 +70,32 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
     bloodType: "",
     rh: "+",
   })
+
+  // Use session timeout hook with form data preservation
+  const { saveFormData } = useSessionTimeout({
+    onTimeout: () => {
+      // Save form data before timeout
+      saveFormData(
+        activeTab === "redblood" ? "redblood-form" : activeTab === "plasma" ? "plasma-form" : "platelets-form",
+      )
+    },
+  })
+
+  // Save form data periodically
+  useEffect(() => {
+    const saveInterval = setInterval(() => {
+      saveFormData(
+        activeTab === "redblood" ? "redblood-form" : activeTab === "plasma" ? "plasma-form" : "platelets-form",
+      )
+    }, 30000) // Save every 30 seconds
+
+    return () => clearInterval(saveInterval)
+  }, [activeTab, saveFormData, redBloodForm, plasmaForm, plateletsForm])
+
+  // Handle tab change
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+  }
 
   // Handle red blood cell form change
   const handleRedBloodChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -198,55 +229,110 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
     return isValid
   }
 
-  // Generic API request handler with retry logic
-  const makeApiRequest = useCallback(async (url: string, data: any): Promise<ApiErrorResponse> => {
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      })
+  // Generic API request handler with retry logic and session handling
+  const makeApiRequest = useCallback(
+    async (url: string, data: any): Promise<ApiErrorResponse> => {
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+          credentials: "include", // Important for session cookies
+        })
 
-      const responseData = await response.json()
+        // Check for authentication issues
+        if (response.status === 401 || response.status === 403) {
+          // Save form data before redirecting
+          saveFormData(
+            activeTab === "redblood" ? "redblood-form" : activeTab === "plasma" ? "plasma-form" : "platelets-form",
+          )
 
-      if (!response.ok) {
-        // Handle HTTP error status codes
+          toast({
+            title: "Session expired",
+            description: "Your session has expired. Please log in again.",
+            variant: "destructive",
+          })
+
+          // Redirect to login with return path
+          const returnPath = encodeURIComponent(window.location.pathname)
+          window.location.href = `/login?reason=session-timeout&returnTo=${returnPath}`
+
+          return {
+            success: false,
+            error: "Authentication failed. Please log in again.",
+            type: ErrorType.AUTHENTICATION,
+            retryable: false,
+          }
+        }
+
+        const responseData = await response.json()
+
+        if (!response.ok) {
+          // Handle HTTP error status codes
+          return {
+            success: false,
+            error: responseData.error || `Server error: ${response.status}`,
+            type: responseData.type || ErrorType.SERVER,
+            details: responseData.details,
+            validationErrors: responseData.validationErrors,
+            retryable: response.status >= 500 || response.status === 429, // Server errors and rate limiting are retryable
+          }
+        }
+
+        if (!responseData.success) {
+          // Handle API-level errors
+          return {
+            success: false,
+            error: responseData.error || "Operation failed",
+            type: responseData.type,
+            details: responseData.details,
+            validationErrors: responseData.validationErrors,
+            retryable: responseData.retryable || false,
+          }
+        }
+
+        return { success: true, error: "" }
+      } catch (err) {
+        // Handle network errors
+        console.error("API request error:", err)
+
+        // Check if this might be due to a session timeout
+        const isSessionError =
+          err instanceof Error &&
+          (err.message.includes("unauthorized") ||
+            err.message.includes("forbidden") ||
+            err.message.includes("not authenticated"))
+
+        if (isSessionError) {
+          // Save form data before redirecting
+          saveFormData(
+            activeTab === "redblood" ? "redblood-form" : activeTab === "plasma" ? "plasma-form" : "platelets-form",
+          )
+
+          // Redirect to login with return path
+          const returnPath = encodeURIComponent(window.location.pathname)
+          window.location.href = `/login?reason=session-timeout&returnTo=${returnPath}`
+
+          return {
+            success: false,
+            error: "Authentication failed. Please log in again.",
+            type: ErrorType.AUTHENTICATION,
+            retryable: false,
+          }
+        }
+
         return {
           success: false,
-          error: responseData.error || `Server error: ${response.status}`,
-          type: responseData.type || ErrorType.SERVER,
-          details: responseData.details,
-          validationErrors: responseData.validationErrors,
-          retryable: response.status >= 500 || response.status === 429, // Server errors and rate limiting are retryable
+          error: "Network error. Please check your connection.",
+          type: ErrorType.SERVER,
+          retryable: true, // Network errors are typically retryable
         }
       }
-
-      if (!responseData.success) {
-        // Handle API-level errors
-        return {
-          success: false,
-          error: responseData.error || "Operation failed",
-          type: responseData.type,
-          details: responseData.details,
-          validationErrors: responseData.validationErrors,
-          retryable: responseData.retryable || false,
-        }
-      }
-
-      return { success: true, error: "" }
-    } catch (err) {
-      // Handle network errors
-      console.error("API request error:", err)
-      return {
-        success: false,
-        error: "Network error. Please check your connection.",
-        type: ErrorType.SERVER,
-        retryable: true, // Network errors are typically retryable
-      }
-    }
-  }, [])
+    },
+    [activeTab, saveFormData, toast],
+  )
 
   // Handle red blood cell form submit
   const handleRedBloodSubmit = async (e: React.FormEvent) => {
@@ -455,7 +541,7 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
           </Alert>
         )}
 
-        <Tabs defaultValue="redblood">
+        <Tabs defaultValue="redblood" onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="redblood">Red Blood Cells</TabsTrigger>
             <TabsTrigger value="plasma">Plasma</TabsTrigger>
@@ -463,7 +549,7 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
           </TabsList>
 
           <TabsContent value="redblood">
-            <form onSubmit={handleRedBloodSubmit} className="space-y-4">
+            <form id="redblood-form" onSubmit={handleRedBloodSubmit} className="space-y-4" ref={formRef}>
               <div className="space-y-2">
                 <Label
                   htmlFor="redblood-donorName"
@@ -594,7 +680,7 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
           </TabsContent>
 
           <TabsContent value="plasma">
-            <form onSubmit={handlePlasmaSubmit} className="space-y-4">
+            <form id="plasma-form" onSubmit={handlePlasmaSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="plasma-donorName" className={hasError("plasma-donorName") ? "text-destructive" : ""}>
                   Donor Name
@@ -700,7 +786,7 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
           </TabsContent>
 
           <TabsContent value="platelets">
-            <form onSubmit={handlePlateletsSubmit} className="space-y-4">
+            <form id="platelets-form" onSubmit={handlePlateletsSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label
                   htmlFor="platelets-donorName"

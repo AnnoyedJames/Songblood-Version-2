@@ -9,15 +9,27 @@ export async function GET() {
   try {
     const session = await getSession()
 
-    return NextResponse.json({
-      authenticated: !!session,
-      session: session
-        ? {
-            adminId: session.adminId,
-            hospitalId: session.hospitalId,
-          }
-        : null,
-    })
+    // Set headers to prevent caching
+    const headers = new Headers()
+    headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+    headers.set("Pragma", "no-cache")
+    headers.set("Expires", "0")
+    headers.set("Surrogate-Control", "no-store")
+
+    return NextResponse.json(
+      {
+        authenticated: !!session,
+        session: session
+          ? {
+              adminId: session.adminId,
+              hospitalId: session.hospitalId,
+              // Add timestamp for client-side validation
+              lastChecked: Date.now(),
+            }
+          : null,
+      },
+      { headers },
+    )
   } catch (error) {
     const appError = logError(error, "Check Session API")
 

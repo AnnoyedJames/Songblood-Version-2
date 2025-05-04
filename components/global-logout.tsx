@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useSession } from "@/components/session-provider"
 
-export function GlobalLogout() {
+export default function GlobalLogout() {
   const router = useRouter()
   const { toast } = useToast()
   const { isAuthenticated, checkSession } = useSession()

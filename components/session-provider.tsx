@@ -1,110 +1,132 @@
 "use client"
 
-import type React from "react"
-
-import { createContext, useContext, useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { type ReactNode, useEffect, createContext, useContext, useState } from "react"
 import { useSessionTimeout } from "@/lib/session-timeout"
+import { usePathname } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 
-type SessionContextType = {
-  isAuthenticated: boolean
-  logout: () => Promise<void>
-  checkSession: () => Promise<boolean>
+interface SessionProviderProps {
+  children: ReactNode
+  timeoutMinutes?: number
+  warningMinutes?: number
+}
+
+interface SessionContextType {
+  resetTimer: () => void
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined)
 
-export function SessionProvider({
+export default function SessionProvider({
   children,
-  initialAuth = false,
-  sessionTimeoutMinutes = 30,
-}: {
-  children: React.ReactNode
-  initialAuth?: boolean
-  sessionTimeoutMinutes?: number
-}) {
-  const [isAuthenticated, setIsAuthenticated] = useState(initialAuth)
-  const router = useRouter()
+  timeoutMinutes = 60, // Extended from 30 to 60 minutes
+  warningMinutes = 5,
+}: SessionProviderProps) {
   const pathname = usePathname()
   const { toast } = useToast()
+  const [resetTimerFunction, setResetTimerFunction] = useState<(() => void) | null>(null)
 
-  // Set up session timeout
-  useSessionTimeout({
-    timeoutMinutes: sessionTimeoutMinutes,
-    enabled: isAuthenticated,
+  // Skip session timeout on login and register pages
+  const isAuthPage = pathname === "/login" || pathname === "/register"
+
+  // Use session timeout hook
+  const { resetTimer } = useSessionTimeout({
+    timeoutMinutes,
+    warningMinutes,
+    enabled: !isAuthPage,
+    preserveFormData: true,
   })
 
-  // Check session status
-  const checkSession = async (): Promise<boolean> => {
-    try {
-      const response = await fetch("/api/check-session", {
-        method: "GET",
-        credentials: "include",
-      })
-
-      if (!response.ok) {
-        setIsAuthenticated(false)
-        return false
-      }
-
-      const data = await response.json()
-      setIsAuthenticated(data.authenticated)
-      return data.authenticated
-    } catch (error) {
-      console.error("Error checking session:", error)
-      setIsAuthenticated(false)
-      return false
-    }
-  }
-
-  // Logout function
-  const logout = async (): Promise<void> => {
-    try {
-      await fetch("/api/logout", {
-        method: "POST",
-        credentials: "include",
-      })
-
-      setIsAuthenticated(false)
-
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account.",
-        variant: "success",
-      })
-
-      router.push("/login?reason=logout-success")
-
-      // Force a hard navigation to ensure all state is cleared
-      setTimeout(() => {
-        window.location.href = "/login?reason=logout-success"
-      }, 100)
-    } catch (error) {
-      console.error("Logout error:", error)
-
-      toast({
-        title: "Logout failed",
-        description: "There was an issue logging you out. Please try again.",
-        variant: "destructive",
-      })
-
-      // Even if there's an error, try to redirect to login
-      router.push("/login?reason=error")
-    }
-  }
-
-  // Check session on mount and when pathname changes
   useEffect(() => {
-    // Skip session check for public routes
-    const isPublicRoute = pathname === "/login" || pathname === "/register"
+    setResetTimerFunction(() => resetTimer)
+  }, [resetTimer])
 
-    if (!isPublicRoute) {
-      checkSession()
+  // Check for form data to restore on page load
+  useEffect(() => {
+    if (isAuthPage) return
+
+    try {
+      const pageIdentifier = pathname.replace(/\//g, "_")
+      const storageKeyPrefix = `formData_${pageIdentifier}_`
+
+      // Look for saved form data for this page
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i)
+        if (key && key.startsWith(storageKeyPrefix)) {
+          const savedData = JSON.parse(sessionStorage.getItem(key) || "{}")
+
+          // Check if data is less than 30 minutes old
+          const isRecent = Date.now() - savedData.timestamp < 30 * 60 * 1000
+
+          if (isRecent) {
+            // Show toast notification about form data
+            toast({
+              title: "Form data recovered",
+              description: "We've restored your previously entered data.",
+              duration: 5000,
+              action: (
+                <button
+                  onClick={() => {
+                    sessionStorage.removeItem(key)
+                    window.location.reload()
+                  }}
+                  className="bg-destructive text-destructive-foreground px-3 py-1 rounded-md hover:bg-destructive/90 transition-colors"
+                >
+                  Discard
+                </button>
+              ),
+            })
+
+            // Wait for DOM to be ready
+            setTimeout(() => {
+              // Find the form and restore data
+              const formId = key.split("_").pop()
+              const form = document.getElementById(formId) as HTMLFormElement
+
+              if (form) {
+                Object.entries(savedData.data).forEach(([name, value]) => {
+                  const element = form.elements.namedItem(name) as
+                    | HTMLInputElement
+                    | HTMLSelectElement
+                    | HTMLTextAreaElement
+                  if (element) {
+                    element.value = value as string
+                  }
+                })
+              }
+            }, 500)
+
+            // Remove the saved data
+            sessionStorage.removeItem(key)
+            break
+          } else {
+            // Remove old data
+            sessionStorage.removeItem(key)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error restoring form data:", error)
     }
-  }, [pathname])
+  }, [pathname, toast, isAuthPage])
 
-  return <SessionContext.Provider value={{ isAuthenticated, logout, checkSession }}>{children}</SessionContext.Provider>
+  // Listen for storage events (for cross-tab logout)
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "logout" && event.newValue === "true") {
+        window.location.href = "/login?reason=logged-out-in-another-tab"
+      }
+    }
+
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
+
+  return (
+    <SessionContext.Provider value={{ resetTimer: resetTimerFunction || (() => {}) }}>
+      {children}
+    </SessionContext.Provider>
+  )
 }
 
 export function useSession() {

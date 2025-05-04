@@ -7,24 +7,28 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Loader2 } from "lucide-react"
 import { ErrorType } from "@/lib/error-handling"
 
-export default function LoginForm() {
+interface LoginFormProps {
+  returnTo?: string
+}
+
+export default function LoginForm({ returnTo }: LoginFormProps) {
   const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [errorType, setErrorType] = useState<ErrorType | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsLoading(true)
     setError("")
     setErrorType(null)
-    setIsLoading(true)
 
     try {
       const response = await fetch("/api/login", {
@@ -37,29 +41,36 @@ export default function LoginForm() {
 
       const data = await response.json()
 
-      if (data.success) {
-        router.push("/dashboard")
-        router.refresh()
-      } else {
-        setError(data.error || "Login failed. Please check your credentials and try again.")
-        setErrorType(data.type || null)
+      if (!response.ok || !data.success) {
+        setError(data.error || "Login failed. Please check your credentials.")
+        setErrorType(data.type || ErrorType.AUTHENTICATION)
+        setIsLoading(false)
+        return
       }
+
+      // If login is successful and we have a returnTo URL, navigate there
+      if (returnTo) {
+        const decodedReturnTo = decodeURIComponent(returnTo)
+        // Validate the returnTo URL to prevent open redirect vulnerabilities
+        if (decodedReturnTo.startsWith("/") && !decodedReturnTo.includes("//")) {
+          router.push(decodedReturnTo)
+          return
+        }
+      }
+
+      // Otherwise go to dashboard
+      router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
-      setError("Connection error. Please try again later.")
+      setError("An unexpected error occurred. Please try again.")
       setErrorType(ErrorType.SERVER)
-    } finally {
       setIsLoading(false)
     }
   }
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Admin Login</CardTitle>
-        <CardDescription>Enter your credentials to access the admin portal</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {error && (
           <Alert variant={errorType === ErrorType.DATABASE_CONNECTION ? "warning" : "destructive"} className="mb-4">
             <AlertCircle className="h-4 w-4" />
@@ -77,10 +88,14 @@ export default function LoginForm() {
               onChange={(e) => setUsername(e.target.value)}
               required
               autoComplete="username"
+              disabled={isLoading}
             />
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+            </div>
             <Input
               id="password"
               type="password"
@@ -88,10 +103,18 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              disabled={isLoading}
             />
           </div>
+
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Logging in..." : "Login"}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Logging in...
+              </>
+            ) : (
+              "Log in"
+            )}
           </Button>
         </form>
       </CardContent>
