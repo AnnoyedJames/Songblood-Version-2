@@ -10,6 +10,7 @@ import Header from "@/components/header"
 import BloodInventoryChart from "@/components/blood-inventory-chart"
 import InventoryTable from "@/components/inventory-table"
 import SurplusAlerts from "@/components/surplus-alerts"
+import RealTimeInventoryWarnings from "@/components/real-time-inventory-warnings"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import DatabaseError from "@/components/database-error"
@@ -74,6 +75,21 @@ export default async function DashboardPage() {
                 <span>Data Diagnostics</span>
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Link>
+            </div>
+
+            {/* Blood Inventory Warnings - Real-time Component */}
+            <div className="mb-6">
+              <Suspense fallback={<Skeleton className="w-full h-48 rounded-lg" />}>
+                <div className="relative">
+                  <RealTimeInventoryWarnings
+                    initialRedBlood={redBlood}
+                    initialPlasma={plasma}
+                    initialPlatelets={platelets}
+                    hospitalId={hospitalId}
+                    refreshInterval={30000} // Refresh every 30 seconds
+                  />
+                </div>
+              </Suspense>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
