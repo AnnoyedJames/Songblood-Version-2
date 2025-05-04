@@ -16,6 +16,7 @@ type RealTimeInventoryWarningsProps = {
   initialPlatelets: InventoryItem[]
   hospitalId: number
   refreshInterval?: number // in milliseconds
+  className?: string
 }
 
 export default function RealTimeInventoryWarnings({
@@ -24,6 +25,7 @@ export default function RealTimeInventoryWarnings({
   initialPlatelets,
   hospitalId,
   refreshInterval = 60000, // Default to 1 minute
+  className = "",
 }: RealTimeInventoryWarningsProps) {
   const [redBlood, setRedBlood] = useState(initialRedBlood)
   const [plasma, setPlasma] = useState(initialPlasma)
@@ -75,7 +77,7 @@ export default function RealTimeInventoryWarnings({
 
   if (error) {
     return (
-      <div className="p-4 border border-red-200 rounded-lg bg-red-50 text-red-700">
+      <div className={`p-4 border border-red-200 rounded-lg bg-red-50 text-red-700 ${className}`}>
         <p>{error}</p>
         <p className="text-sm mt-1">Using last available data</p>
       </div>
@@ -89,7 +91,7 @@ export default function RealTimeInventoryWarnings({
           <div className="animate-pulse h-2 w-2 rounded-full bg-blue-500"></div>
         </div>
       )}
-      <BloodInventoryWarnings redBlood={redBlood} plasma={plasma} platelets={platelets} />
+      <BloodInventoryWarnings redBlood={redBlood} plasma={plasma} platelets={platelets} className={className} />
     </>
   )
 }

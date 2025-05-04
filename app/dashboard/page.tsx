@@ -77,16 +77,29 @@ export default async function DashboardPage() {
               </Link>
             </div>
 
-            {/* Blood Inventory Warnings - Real-time Component */}
-            <div className="mb-6">
-              <Suspense fallback={<Skeleton className="w-full h-48 rounded-lg" />}>
-                <div className="relative">
+            {/* Top section: Chart and Warnings side by side */}
+            <div className="grid gap-6 lg:grid-cols-2 mb-8">
+              {/* Blood Inventory Chart with thresholds */}
+              <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+                <BloodInventoryChart
+                  redBlood={redBlood}
+                  plasma={plasma}
+                  platelets={platelets}
+                  showThresholds={true}
+                  className="h-full"
+                />
+              </Suspense>
+
+              {/* Blood Inventory Warnings - Real-time Component */}
+              <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+                <div className="relative h-full">
                   <RealTimeInventoryWarnings
                     initialRedBlood={redBlood}
                     initialPlasma={plasma}
                     initialPlatelets={platelets}
                     hospitalId={hospitalId}
                     refreshInterval={30000} // Refresh every 30 seconds
+                    className="h-full"
                   />
                 </div>
               </Suspense>
@@ -112,17 +125,10 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3 mb-8">
-              <div className="lg:col-span-2">
-                <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
-                  <BloodInventoryChart redBlood={redBlood} plasma={plasma} platelets={platelets} />
-                </Suspense>
-              </div>
-              <div>
-                <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
-                  <SurplusAlerts alerts={alerts} />
-                </Suspense>
-              </div>
+            <div className="mb-8">
+              <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+                <SurplusAlerts alerts={alerts} />
+              </Suspense>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

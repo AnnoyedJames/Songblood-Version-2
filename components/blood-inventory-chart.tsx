@@ -21,13 +21,21 @@ type BloodInventoryChartProps = {
   redBlood: InventoryItem[]
   plasma: InventoryItem[]
   platelets: InventoryItem[]
+  showThresholds?: boolean
+  className?: string
 }
 
-export default function BloodInventoryChart({ redBlood, plasma, platelets }: BloodInventoryChartProps) {
+export default function BloodInventoryChart({
+  redBlood,
+  plasma,
+  platelets,
+  showThresholds = true,
+  className = "",
+}: BloodInventoryChartProps) {
   return (
-    <div className="w-full h-96 bg-white p-4 rounded-lg shadow">
+    <div className={`w-full h-96 bg-white p-4 rounded-lg shadow ${className}`}>
       <Suspense fallback={<Skeleton className="w-full h-96" />}>
-        <DynamicChart redBlood={redBlood} plasma={plasma} platelets={platelets} />
+        <DynamicChart redBlood={redBlood} plasma={plasma} platelets={platelets} showThresholds={showThresholds} />
       </Suspense>
     </div>
   )

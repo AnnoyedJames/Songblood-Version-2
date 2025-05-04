@@ -1,10 +1,7 @@
 "use client"
 
-import { Bar } from "react-chartjs-2"
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js"
-
-// Register ChartJS components
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+import { useEffect, useRef } from "react"
+import { Chart, type ChartConfiguration, type ChartData, type ChartOptions } from "chart.js/auto"
 
 type InventoryItem = {
   blood_type: string
@@ -17,143 +14,156 @@ type DynamicChartProps = {
   redBlood: InventoryItem[]
   plasma: InventoryItem[]
   platelets: InventoryItem[]
+  showThresholds?: boolean
 }
 
-// Let's add some logging to debug the data received by the component
-export default function DynamicChart({ redBlood, plasma, platelets }: DynamicChartProps) {
-  console.log("DynamicChart - Red Blood Cell data:", JSON.stringify(redBlood, null, 2))
-  console.log("DynamicChart - Plasma data:", JSON.stringify(plasma, null, 2))
-  console.log("DynamicChart - Platelets data:", JSON.stringify(platelets, null, 2))
+export default function DynamicChart({ redBlood, plasma, platelets, showThresholds = true }: DynamicChartProps) {
+  const chartRef = useRef<HTMLCanvasElement>(null)
+  const chartInstance = useRef<Chart | null>(null)
 
-  // Process data for chart
-  const bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+  useEffect(() => {
+    if (!chartRef.current) return
 
-  // Helper function to find inventory item by blood type and rh
-  const findRedBloodItem = (fullType: string) => {
-    // Parse blood type and rh from the full type
-    let bloodType, rh
+    // Process data for the chart
+    const bloodTypes = Array.from(
+      new Set([
+        ...redBlood.map((item) => `${item.blood_type}${item.rh ? item.rh : ""}`),
+        ...plasma.map((item) => item.blood_type),
+        ...platelets.map((item) => `${item.blood_type}${item.rh ? item.rh : ""}`),
+      ]),
+    ).sort()
 
-    if (fullType.includes("+") || fullType.includes("-")) {
-      if (fullType.startsWith("AB")) {
-        bloodType = "AB"
-        rh = fullType.substring(2) // Get the + or - after AB
-      } else {
-        bloodType = fullType.charAt(0) // A, B, or O
-        rh = fullType.substring(1) // Get the + or - after the blood type
-      }
-
-      // Ensure we're comparing strings to strings or numbers to numbers
-      const foundItem = redBlood.find((item) => item.blood_type === bloodType && String(item.rh) === String(rh))
-
-      if (!foundItem) {
-        console.log(
-          `No red blood item found for ${bloodType}${rh}. Available items:`,
-          redBlood.map((item) => `${item.blood_type}${item.rh}`),
-        )
-      }
-
-      return foundItem
-    }
-    return null
-  }
-
-  const findPlasmaItem = (fullType: string) => {
-    // For plasma, we only care about the blood type (A, B, AB, O)
-    let bloodType
-
-    if (fullType.startsWith("AB")) {
-      bloodType = "AB"
-    } else {
-      bloodType = fullType.charAt(0) // A, B, or O
-    }
-
-    return plasma.find((item) => item.blood_type === bloodType)
-  }
-
-  const findPlateletsItem = (fullType: string) => {
-    // Parse blood type and rh from the full type
-    let bloodType, rh
-
-    if (fullType.includes("+") || fullType.includes("-")) {
-      if (fullType.startsWith("AB")) {
-        bloodType = "AB"
-        rh = fullType.substring(2) // Get the + or - after AB
-      } else {
-        bloodType = fullType.charAt(0) // A, B, or O
-        rh = fullType.substring(1) // Get the + or - after the blood type
-      }
-
-      return platelets.find((item) => item.blood_type === bloodType && item.rh === rh)
-    }
-    return null
-  }
-
-  // Prepare data for chart
-  const redBloodData = bloodTypes.map((type) => {
-    const item = findRedBloodItem(type)
-    return item ? Number(item.total_amount) : 0
-  })
-
-  const plasmaData = bloodTypes.map((type) => {
-    const item = findPlasmaItem(type)
-    return item ? Number(item.total_amount) : 0
-  })
-
-  const plateletsData = bloodTypes.map((type) => {
-    const item = findPlateletsItem(type)
-    return item ? Number(item.total_amount) : 0
-  })
-
-  // Chart data
-  const data = {
-    labels: bloodTypes,
-    datasets: [
+    // Prepare datasets
+    const datasets = [
       {
-        label: "Red Blood Cells (ml)",
-        data: redBloodData,
-        backgroundColor: "rgba(255, 99, 132, 0.5)",
-        borderColor: "rgba(255, 99, 132, 1)",
+        label: "Red Blood Cells",
+        data: bloodTypes.map((type) => {
+          const item = redBlood.find((item) => `${item.blood_type}${item.rh ? item.rh : ""}` === type)
+          return item ? item.total_amount : 0
+        }),
+        backgroundColor: "rgba(220, 38, 38, 0.5)",
+        borderColor: "rgba(220, 38, 38, 1)",
         borderWidth: 1,
       },
       {
-        label: "Plasma (ml)",
-        data: plasmaData,
-        backgroundColor: "rgba(255, 206, 86, 0.5)",
-        borderColor: "rgba(255, 206, 86, 1)",
+        label: "Plasma",
+        data: bloodTypes.map((type) => {
+          const item = plasma.find((item) => item.blood_type === type)
+          return item ? item.total_amount : 0
+        }),
+        backgroundColor: "rgba(245, 158, 11, 0.5)",
+        borderColor: "rgba(245, 158, 11, 1)",
         borderWidth: 1,
       },
       {
-        label: "Platelets (ml)",
-        data: plateletsData,
-        backgroundColor: "rgba(54, 162, 235, 0.5)",
-        borderColor: "rgba(54, 162, 235, 1)",
+        label: "Platelets",
+        data: bloodTypes.map((type) => {
+          const item = platelets.find((item) => `${item.blood_type}${item.rh ? item.rh : ""}` === type)
+          return item ? item.total_amount : 0
+        }),
+        backgroundColor: "rgba(59, 130, 246, 0.5)",
+        borderColor: "rgba(59, 130, 246, 1)",
         borderWidth: 1,
       },
-    ],
-  }
+    ]
 
-  // Chart options
-  const options = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: "top" as const,
-      },
-      title: {
-        display: true,
-        text: "Blood Inventory by Type",
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: "Amount (ml)",
+    // Add threshold annotations if enabled
+    const annotations: any = {}
+
+    if (showThresholds) {
+      annotations.lowThreshold = {
+        type: "line",
+        yMin: 1500,
+        yMax: 1500,
+        borderColor: "rgba(245, 158, 11, 0.7)",
+        borderWidth: 2,
+        borderDash: [6, 6],
+        label: {
+          content: "Low (1500ml)",
+          enabled: true,
+          position: "end",
+          backgroundColor: "rgba(245, 158, 11, 0.7)",
+        },
+      }
+
+      annotations.criticalThreshold = {
+        type: "line",
+        yMin: 500,
+        yMax: 500,
+        borderColor: "rgba(220, 38, 38, 0.7)",
+        borderWidth: 2,
+        borderDash: [6, 6],
+        label: {
+          content: "Critical (500ml)",
+          enabled: true,
+          position: "end",
+          backgroundColor: "rgba(220, 38, 38, 0.7)",
+        },
+      }
+    }
+
+    const options: ChartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Volume (ml)",
+          },
+        },
+        x: {
+          title: {
+            display: true,
+            text: "Blood Type",
+          },
         },
       },
-    },
-  }
+      plugins: {
+        legend: {
+          position: "top",
+        },
+        tooltip: {
+          callbacks: {
+            label: (context) => {
+              const value = context.raw as number
+              return `${context.dataset.label}: ${value.toLocaleString()} ml`
+            },
+          },
+        },
+        annotation: {
+          annotations: annotations,
+        },
+      },
+    }
 
-  return <Bar data={data} options={options} />
+    const data: ChartData = {
+      labels: bloodTypes,
+      datasets: datasets,
+    }
+
+    const config: ChartConfiguration = {
+      type: "bar",
+      data: data,
+      options: options,
+    }
+
+    // Destroy previous chart if it exists
+    if (chartInstance.current) {
+      chartInstance.current.destroy()
+    }
+
+    // Create new chart
+    chartInstance.current = new Chart(chartRef.current, config)
+
+    // Cleanup on unmount
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy()
+      }
+    }
+  }, [redBlood, plasma, platelets, showThresholds])
+
+  return <canvas ref={chartRef} />
 }

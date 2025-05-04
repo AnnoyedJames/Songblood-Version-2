@@ -1,7 +1,4 @@
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatBloodType, getBloodTypeColor } from "@/lib/utils"
-import { AlertTriangle, AlertCircle } from "lucide-react"
+import { AlertCircle, AlertTriangle, Check } from "lucide-react"
 
 type InventoryItem = {
   blood_type: string
@@ -14,100 +11,180 @@ type BloodInventoryWarningsProps = {
   redBlood: InventoryItem[]
   plasma: InventoryItem[]
   platelets: InventoryItem[]
+  className?: string
 }
 
-export default function BloodInventoryWarnings({ redBlood, plasma, platelets }: BloodInventoryWarningsProps) {
-  // Combine all inventory items
-  const allInventory = [
-    ...redBlood.map((item) => ({ ...item, type: "Red Blood Cells" })),
-    ...plasma.map((item) => ({ ...item, type: "Plasma" })),
-    ...platelets.map((item) => ({ ...item, type: "Platelets" })),
-  ]
+type WarningItem = {
+  type: "redblood" | "plasma" | "platelets"
+  blood_type: string
+  rh?: string
+  count: number
+  total_amount: number
+  status: "critical" | "low"
+}
 
-  // Filter for low and critical levels
-  const criticalItems = allInventory.filter((item) => item.total_amount < 500)
-  const lowItems = allInventory.filter((item) => item.total_amount >= 500 && item.total_amount < 1500)
+export default function BloodInventoryWarnings({
+  redBlood,
+  plasma,
+  platelets,
+  className = "",
+}: BloodInventoryWarningsProps) {
+  // Process all inventory items to find warnings
+  const warnings: WarningItem[] = []
 
-  // If no warnings, show a message
-  if (criticalItems.length === 0 && lowItems.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Inventory Warnings</CardTitle>
-          <CardDescription>Blood types with low or critical supply levels</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-4 text-muted-foreground">
-            All blood types are at adequate supply levels.
-          </div>
-        </CardContent>
-      </Card>
-    )
+  // Check red blood cells
+  redBlood.forEach((item) => {
+    if (item.total_amount < 500) {
+      warnings.push({
+        type: "redblood",
+        blood_type: item.blood_type,
+        rh: item.rh,
+        count: item.count,
+        total_amount: item.total_amount,
+        status: "critical",
+      })
+    } else if (item.total_amount < 1500) {
+      warnings.push({
+        type: "redblood",
+        blood_type: item.blood_type,
+        rh: item.rh,
+        count: item.count,
+        total_amount: item.total_amount,
+        status: "low",
+      })
+    }
+  })
+
+  // Check plasma
+  plasma.forEach((item) => {
+    if (item.total_amount < 500) {
+      warnings.push({
+        type: "plasma",
+        blood_type: item.blood_type,
+        count: item.count,
+        total_amount: item.total_amount,
+        status: "critical",
+      })
+    } else if (item.total_amount < 1500) {
+      warnings.push({
+        type: "plasma",
+        blood_type: item.blood_type,
+        count: item.count,
+        total_amount: item.total_amount,
+        status: "low",
+      })
+    }
+  })
+
+  // Check platelets
+  platelets.forEach((item) => {
+    if (item.total_amount < 500) {
+      warnings.push({
+        type: "platelets",
+        blood_type: item.blood_type,
+        rh: item.rh,
+        count: item.count,
+        total_amount: item.total_amount,
+        status: "critical",
+      })
+    } else if (item.total_amount < 1500) {
+      warnings.push({
+        type: "platelets",
+        blood_type: item.blood_type,
+        rh: item.rh,
+        count: item.count,
+        total_amount: item.total_amount,
+        status: "low",
+      })
+    }
+  })
+
+  // Sort warnings by status (critical first) and then by blood type
+  warnings.sort((a, b) => {
+    if (a.status === "critical" && b.status !== "critical") return -1
+    if (a.status !== "critical" && b.status === "critical") return 1
+    return `${a.blood_type}${a.rh || ""}`.localeCompare(`${b.blood_type}${b.rh || ""}`)
+  })
+
+  // Helper function to get type label
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "redblood":
+        return "Red Blood Cells"
+      case "plasma":
+        return "Plasma"
+      case "platelets":
+        return "Platelets"
+      default:
+        return type
+    }
+  }
+
+  // Helper function to get blood type badge color
+  const getBloodTypeColor = (bloodType: string) => {
+    switch (bloodType) {
+      case "A":
+        return "bg-green-100 text-green-800"
+      case "B":
+        return "bg-blue-100 text-blue-800"
+      case "AB":
+        return "bg-purple-100 text-purple-800"
+      case "O":
+        return "bg-orange-100 text-orange-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Inventory Warnings</CardTitle>
-        <CardDescription>Blood types with low or critical supply levels</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {criticalItems.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-medium text-red-600 flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" /> Critical Supply
-              </h3>
-              <div className="grid gap-2">
-                {criticalItems.map((item, index) => (
-                  <div
-                    key={`critical-${index}`}
-                    className="flex items-center justify-between p-2 border rounded-md bg-red-50"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge className={getBloodTypeColor(item.blood_type, item.rh)}>
-                        {formatBloodType(item.blood_type, item.rh)}
-                      </Badge>
-                      <span className="font-medium">{item.type}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-red-600 font-bold">{item.total_amount.toLocaleString()} ml</span>
-                      <div className="text-xs text-muted-foreground">{item.count} units</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+    <div className={`bg-white rounded-lg shadow p-4 ${className}`}>
+      <h2 className="text-lg font-medium mb-3">Inventory Warnings</h2>
 
-          {lowItems.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-medium text-amber-600 flex items-center gap-1">
-                <AlertTriangle className="h-4 w-4" /> Low Supply
-              </h3>
-              <div className="grid gap-2">
-                {lowItems.map((item, index) => (
-                  <div
-                    key={`low-${index}`}
-                    className="flex items-center justify-between p-2 border rounded-md bg-amber-50"
+      {warnings.length === 0 ? (
+        <div className="flex items-center p-3 bg-green-50 text-green-700 rounded-md">
+          <Check className="h-5 w-5 mr-2" />
+          <span>All blood types at adequate levels</span>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {warnings.map((warning, index) => (
+            <div
+              key={index}
+              className={`flex items-center p-3 rounded-md ${
+                warning.status === "critical" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+              }`}
+            >
+              {warning.status === "critical" ? (
+                <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" />
+              )}
+
+              <div className="flex-1">
+                <div className="flex items-center">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-2 ${getBloodTypeColor(
+                      warning.blood_type,
+                    )}`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Badge className={getBloodTypeColor(item.blood_type, item.rh)}>
-                        {formatBloodType(item.blood_type, item.rh)}
-                      </Badge>
-                      <span className="font-medium">{item.type}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-amber-600 font-bold">{item.total_amount.toLocaleString()} ml</span>
-                      <div className="text-xs text-muted-foreground">{item.count} units</div>
-                    </div>
-                  </div>
-                ))}
+                    {warning.blood_type}
+                    {warning.rh !== undefined ? warning.rh : ""}
+                  </span>
+                  <span className="font-medium">{getTypeLabel(warning.type)}</span>
+                </div>
+                <div className="text-sm mt-1">
+                  <span className="font-bold">{warning.total_amount.toLocaleString()} ml</span>
+                  <span className="mx-1">•</span>
+                  <span>{warning.count} units</span>
+                  <span className="ml-2 text-xs uppercase font-semibold">
+                    {warning.status === "critical" ? "CRITICAL" : "LOW"}
+                  </span>
+                </div>
               </div>
             </div>
-          )}
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }

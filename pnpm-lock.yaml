@@ -134,9 +134,6 @@ importers:
       react:
         specifier: ^19
         version: 19.0.0
-      react-chartjs-2:
-        specifier: latest
-        version: 5.3.0(chart.js@4.4.9)(react@19.0.0)
       react-day-picker:
         specifier: 8.10.1
         version: 8.10.1(date-fns@4.1.0)(react@19.0.0)
@@ -1672,12 +1669,6 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
-
-  react-chartjs-2@5.3.0:
-    resolution: {integrity: sha512-UfZZFnDsERI3c3CZGxzvNJd02SHjaSJ8kgW1djn65H1KK8rehwTjyrRKOG3VTMG8wtHZ5rgAO5oTHtHi9GCCmw==}
-    peerDependencies:
-      chart.js: ^4.1.1
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   react-day-picker@8.10.1:
     resolution: {integrity: sha512-TMx7fNbhLk15eqcMt+7Z7S2KF7mfTId/XJDjKE8f+IUcFn0l08/kI4FiYTL/0yuOLmEcbR4Fwe3GJf/NiiMnPA==}
@@ -3396,11 +3387,6 @@ snapshots:
       react-is: 16.13.1
 
   queue-microtask@1.2.3: {}
-
-  react-chartjs-2@5.3.0(chart.js@4.4.9)(react@19.0.0):
-    dependencies:
-      chart.js: 4.4.9
-      react: 19.0.0
 
   react-day-picker@8.10.1(date-fns@4.1.0)(react@19.0.0):
     dependencies:
