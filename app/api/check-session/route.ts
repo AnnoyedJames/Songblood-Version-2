@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
+import { logError } from "@/lib/error-handling"
 
 // Force dynamic rendering for API routes that use cookies
 export const dynamic = "force-dynamic"
@@ -12,15 +13,20 @@ export async function GET() {
       authenticated: !!session,
       session: session
         ? {
+            adminId: session.adminId,
             hospitalId: session.hospitalId,
           }
         : null,
     })
   } catch (error) {
-    console.error("Session check error:", error)
-    return NextResponse.json({
-      authenticated: false,
-      error: "Failed to check session",
-    })
+    const appError = logError(error, "Check Session API")
+
+    return NextResponse.json(
+      {
+        authenticated: false,
+        error: appError.message,
+      },
+      { status: 500 },
+    )
   }
 }

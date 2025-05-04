@@ -51,15 +51,27 @@ export async function clearSession() {
       sameSite: "strict" as const,
     }
 
+    // Get all cookies to ensure we don't miss any
+    const allCookies = cookies().getAll()
+
     // Clear all authentication cookies
     cookies().set("adminId", "", cookieOptions)
     cookies().set("hospitalId", "", cookieOptions)
     cookies().set("adminUsername", "", cookieOptions)
     cookies().set("adminPassword", "", cookieOptions)
     cookies().set("fallbackMode", "", cookieOptions)
-
-    // Clear any other potential session cookies
     cookies().set("sessionToken", "", cookieOptions)
+
+    // Clear any other session-related cookies that might exist
+    for (const cookie of allCookies) {
+      if (
+        cookie.name.toLowerCase().includes("session") ||
+        cookie.name.toLowerCase().includes("token") ||
+        cookie.name.toLowerCase().includes("auth")
+      ) {
+        cookies().set(cookie.name, "", cookieOptions)
+      }
+    }
 
     // Log the logout for audit purposes
     console.log("User session cleared successfully")
@@ -131,5 +143,21 @@ export async function register(username: string, password: string, hospitalId: n
 
 // Logout function
 export async function logout() {
-  return await clearSession()
+  try {
+    await clearSession()
+    return { success: true }
+  } catch (error) {
+    throw logError(error, "Logout")
+  }
+}
+
+// Check if the user is authenticated
+export async function isAuthenticated() {
+  try {
+    const session = await getSession()
+    return !!session
+  } catch (error) {
+    console.error("Error checking authentication:", error)
+    return false
+  }
 }

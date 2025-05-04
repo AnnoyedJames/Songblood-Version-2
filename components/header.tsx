@@ -5,7 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Menu } from "lucide-react"
 import NavLink from "./nav-link"
 import { AppError, ErrorType } from "@/lib/error-handling"
-import { LogoutButton } from "./logout-button"
+import { LogoutButton } from "@/components/logout-button"
 
 type HeaderProps = {
   hospitalId: number
@@ -91,7 +91,7 @@ export default async function Header({ hospitalId }: HeaderProps) {
           <NavLink href="/diagnostics" activeClassName="text-primary font-semibold">
             Data Diagnostics
           </NavLink>
-          <LogoutButton variant="ghost" size="sm" />
+          <LogoutButton variant="ghost" size="sm" className="ml-auto" />
         </nav>
       </div>
     </header>
