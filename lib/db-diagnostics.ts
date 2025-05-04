@@ -32,6 +32,9 @@ export async function diagnoseRedBloodInventory(filters: DiagnosticFilters) {
     // Build the WHERE clause based on filters with proper table aliases
     const conditions = []
 
+    // Always filter for active=true
+    conditions.push(`rb.active = true`)
+
     if (!showAllHospitals) {
       conditions.push(`rb.hospital_id = ${hospitalId}`)
     }
@@ -70,7 +73,7 @@ export async function diagnoseRedBloodInventory(filters: DiagnosticFilters) {
       // If the condition already has rb. prefix, keep it as is
       if (c.startsWith("rb.")) return c
       // Otherwise, add rb. prefix to column names
-      return c.replace(/blood_type|rh|expiration_date|hospital_id/g, (match) => `rb.${match}`)
+      return c.replace(/blood_type|rh|expiration_date|hospital_id|active/g, (match) => `rb.${match}`)
     })
 
     // Get aggregated data with filters for non-expired blood
@@ -123,6 +126,7 @@ export async function diagnoseRedBloodInventory(filters: DiagnosticFilters) {
       SELECT DISTINCT h.hospital_id, h.hospital_name
       FROM redblood_inventory rb
       JOIN hospital h ON rb.hospital_id = h.hospital_id
+      WHERE rb.active = true
       ORDER BY h.hospital_name
     `
     const hospitals = await dbClient.query(hospitalsQuery)
@@ -189,7 +193,7 @@ export async function updateBloodEntry({
       result = await dbClient`
         UPDATE redblood_inventory
         SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
-        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId} AND active = true
         RETURNING bag_id
       `
       // Invalidate cache
@@ -198,7 +202,7 @@ export async function updateBloodEntry({
       result = await dbClient`
         UPDATE plasma_inventory
         SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
-        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId} AND active = true
         RETURNING bag_id
       `
       // Invalidate cache
@@ -207,7 +211,7 @@ export async function updateBloodEntry({
       result = await dbClient`
         UPDATE platelets_inventory
         SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
-        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId} AND active = true
         RETURNING bag_id
       `
       // Invalidate cache
@@ -246,11 +250,12 @@ export async function deleteBloodEntry(bagId: number, entryType: string, hospita
       return ownershipCheck
     }
 
-    // Delete the entry based on its type
+    // Soft-delete the entry based on its type by setting active = false
     let result
     if (entryType === "RedBlood") {
       result = await dbClient`
-        DELETE FROM redblood_inventory
+        UPDATE redblood_inventory
+        SET active = false
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
         RETURNING bag_id
       `
@@ -258,7 +263,8 @@ export async function deleteBloodEntry(bagId: number, entryType: string, hospita
       queryCache.invalidate(`redblood:${hospitalId}`)
     } else if (entryType === "Plasma") {
       result = await dbClient`
-        DELETE FROM plasma_inventory
+        UPDATE plasma_inventory
+        SET active = false
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
         RETURNING bag_id
       `
@@ -266,7 +272,8 @@ export async function deleteBloodEntry(bagId: number, entryType: string, hospita
       queryCache.invalidate(`plasma:${hospitalId}`)
     } else if (entryType === "Platelets") {
       result = await dbClient`
-        DELETE FROM platelets_inventory
+        UPDATE platelets_inventory
+        SET active = false
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
         RETURNING bag_id
       `
@@ -303,15 +310,15 @@ async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId
     let result
     if (entryType === "RedBlood") {
       result = await dbClient`
-        SELECT hospital_id FROM redblood_inventory WHERE bag_id = ${bagId}
+        SELECT hospital_id FROM redblood_inventory WHERE bag_id = ${bagId} AND active = true
       `
     } else if (entryType === "Plasma") {
       result = await dbClient`
-        SELECT hospital_id FROM plasma_inventory WHERE bag_id = ${bagId}
+        SELECT hospital_id FROM plasma_inventory WHERE bag_id = ${bagId} AND active = true
       `
     } else if (entryType === "Platelets") {
       result = await dbClient`
-        SELECT hospital_id FROM platelets_inventory WHERE bag_id = ${bagId}
+        SELECT hospital_id FROM platelets_inventory WHERE bag_id = ${bagId} AND active = true
       `
     } else {
       return {

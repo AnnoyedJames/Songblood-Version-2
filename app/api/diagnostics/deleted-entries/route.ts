@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
-import { deleteBloodEntry } from "@/lib/db-diagnostics"
+import { listDeletedEntries } from "@/lib/restore-utils"
 import { AppError, ErrorType } from "@/lib/error-handling"
 
-export async function DELETE(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Verify authentication
     const session = await requireAuth()
@@ -14,24 +14,20 @@ export async function DELETE(request: NextRequest) {
     // Get the hospital ID from the session
     const { hospitalId } = session
 
-    // Parse the request body
-    const { bagId, entryType } = await request.json()
+    // Get entry type from query params if provided
+    const url = new URL(request.url)
+    const entryType = url.searchParams.get("type") || undefined
 
-    // Validate the parameters
-    if (!bagId || !entryType) {
-      return NextResponse.json({ success: false, error: "Bag ID and entry type are required" }, { status: 400 })
-    }
-
-    // Soft-delete the entry
-    const result = await deleteBloodEntry(bagId, entryType, hospitalId)
+    // Get deleted entries
+    const result = await listDeletedEntries(hospitalId, entryType as string | undefined)
 
     if (result.success) {
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, data: result.data })
     } else {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 })
     }
   } catch (error) {
-    console.error("Error deleting blood entry:", error)
+    console.error("Error listing deleted entries:", error)
 
     if (error instanceof AppError) {
       return NextResponse.json(
@@ -40,6 +36,6 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: false, error: "Failed to delete blood entry" }, { status: 500 })
+    return NextResponse.json({ success: false, error: "Failed to list deleted entries" }, { status: 500 })
   }
 }

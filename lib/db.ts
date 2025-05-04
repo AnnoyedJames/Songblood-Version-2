@@ -224,11 +224,11 @@ export async function getBloodInventory(hospitalId: number) {
       return cached
     }
 
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const redBlood = await dbClient`
       SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
       FROM redblood_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
       GROUP BY blood_type, rh
       ORDER BY blood_type, rh
     `
@@ -259,11 +259,11 @@ export async function getPlasmaInventory(hospitalId: number) {
       return cached
     }
 
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const plasma = await dbClient`
       SELECT blood_type, COUNT(*) as count, SUM(amount) as total_amount
       FROM plasma_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
       GROUP BY blood_type
       ORDER BY blood_type
     `
@@ -285,11 +285,11 @@ export async function getPlateletsInventory(hospitalId: number) {
       return cached
     }
 
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const platelets = await dbClient`
       SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
       FROM platelets_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
       GROUP BY blood_type, rh
       ORDER BY blood_type, rh
     `
@@ -305,21 +305,21 @@ export async function getPlateletsInventory(hospitalId: number) {
 export async function getSurplusAlerts(hospitalId: number) {
   try {
     // Get current hospital's inventory
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const currentHospitalInventory = await dbClient`
       SELECT 'RedBlood' as type, blood_type, rh, COUNT(*) as count
       FROM redblood_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
       GROUP BY blood_type, rh
       UNION ALL
       SELECT 'Plasma' as type, blood_type, '' as rh, COUNT(*) as count
       FROM plasma_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
       GROUP BY blood_type
       UNION ALL
       SELECT 'Platelets' as type, blood_type, rh, COUNT(*) as count
       FROM platelets_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
       GROUP BY blood_type, rh
     `
 
@@ -334,7 +334,7 @@ export async function getSurplusAlerts(hospitalId: number) {
         let surplusHospitals
 
         if (type === "RedBlood") {
-          // Use tagged template literal syntax
+          // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
             SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
             FROM redblood_inventory rb
@@ -343,12 +343,13 @@ export async function getSurplusAlerts(hospitalId: number) {
               AND rb.blood_type = ${blood_type}
               AND rb.rh = ${rh}
               AND rb.expiration_date > CURRENT_DATE
+              AND rb.active = true
             GROUP BY h.hospital_id, h.hospital_name
             HAVING COUNT(*) > 10
             ORDER BY count DESC
           `
         } else if (type === "Plasma") {
-          // Use tagged template literal syntax
+          // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
             SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
             FROM plasma_inventory p
@@ -356,12 +357,13 @@ export async function getSurplusAlerts(hospitalId: number) {
             WHERE p.hospital_id != ${hospitalId}
               AND p.blood_type = ${blood_type}
               AND p.expiration_date > CURRENT_DATE
+              AND p.active = true
             GROUP BY h.hospital_id, h.hospital_name
             HAVING COUNT(*) > 10
             ORDER BY count DESC
           `
         } else if (type === "Platelets") {
-          // Use tagged template literal syntax
+          // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
             SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
             FROM platelets_inventory p
@@ -370,6 +372,7 @@ export async function getSurplusAlerts(hospitalId: number) {
               AND p.blood_type = ${blood_type}
               AND p.rh = ${rh}
               AND p.expiration_date > CURRENT_DATE
+              AND p.active = true
             GROUP BY h.hospital_id, h.hospital_name
             HAVING COUNT(*) > 10
             ORDER BY count DESC
@@ -409,62 +412,62 @@ export async function searchDonors(query: string) {
     if (!isNaN(Number(query))) {
       const bagId = Number(query)
 
-      // Use tagged template literal syntax
+      // Use tagged template literal syntax - now filtering for active=true
       const redBloodResults = await dbClient`
         SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
                rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
         FROM redblood_inventory rb
         JOIN hospital h ON rb.hospital_id = h.hospital_id
-        WHERE rb.bag_id = ${bagId}
+        WHERE rb.bag_id = ${bagId} AND rb.active = true
       `
 
-      // Use tagged template literal syntax
+      // Use tagged template literal syntax - now filtering for active=true
       const plasmaResults = await dbClient`
         SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
                p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
         FROM plasma_inventory p
         JOIN hospital h ON p.hospital_id = h.hospital_id
-        WHERE p.bag_id = ${bagId}
+        WHERE p.bag_id = ${bagId} AND p.active = true
       `
 
-      // Use tagged template literal syntax
+      // Use tagged template literal syntax - now filtering for active=true
       const plateletsResults = await dbClient`
         SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
                p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
         FROM platelets_inventory p
         JOIN hospital h ON p.hospital_id = h.hospital_id
-        WHERE p.bag_id = ${bagId}
+        WHERE p.bag_id = ${bagId} AND p.active = true
       `
 
       return [...redBloodResults, ...plasmaResults, ...plateletsResults]
     }
 
     // Search by donor name
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const redBloodResults = await dbClient`
       SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
              rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
       FROM redblood_inventory rb
       JOIN hospital h ON rb.hospital_id = h.hospital_id
-      WHERE rb.donor_name ILIKE ${searchTerm}
+      WHERE rb.donor_name ILIKE ${searchTerm} AND rb.active = true
     `
 
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const plasmaResults = await dbClient`
       SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
              p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
       FROM plasma_inventory p
       JOIN hospital h ON p.hospital_id = h.hospital_id
-      WHERE p.donor_name ILIKE ${searchTerm}
+      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
     `
 
-    // Use tagged template literal syntax
+    // Use tagged template literal syntax - now filtering for active=true
     const plateletsResults = await dbClient`
       SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
              p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
       FROM platelets_inventory p
       JOIN hospital h ON p.hospital_id = h.hospital_id
-      WHERE p.donor_name ILIKE ${searchTerm}
+      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
     `
 
     return [...redBloodResults, ...plasmaResults, ...plateletsResults]
@@ -521,15 +524,22 @@ export async function addNewPlasmaBag(
 
     // Use tagged template literal syntax with error handling
     try {
+      // Modified to include active=true
       await dbClient`
-        SELECT Add_New_PlasmaBag(
+        INSERT INTO plasma_inventory (
+          donor_name, 
+          amount, 
+          hospital_id, 
+          expiration_date, 
+          blood_type, 
+          active
+        ) VALUES (
           ${donorName},
           ${amount},
           ${hospitalId},
           ${expirationDate}::date,
           ${bloodType},
-          ${adminUsername},
-          ${adminPassword}
+          true
         )
       `
 
@@ -639,16 +649,24 @@ export async function addNewPlateletsBag(
 
     // Use tagged template literal syntax with error handling
     try {
+      // Modified to include active=true
       await dbClient`
-        SELECT Add_New_PlateletsBag(
+        INSERT INTO platelets_inventory (
+          donor_name, 
+          amount, 
+          hospital_id, 
+          expiration_date, 
+          blood_type, 
+          rh, 
+          active
+        ) VALUES (
           ${donorName},
           ${amount},
           ${hospitalId},
           ${expirationDate}::date,
           ${bloodType},
           ${rh},
-          ${adminUsername},
-          ${adminPassword}
+          true
         )
       `
 
@@ -758,16 +776,24 @@ export async function addNewRedBloodBag(
 
     // Use tagged template literal syntax with error handling
     try {
+      // Modified to include active=true
       await dbClient`
-        SELECT Add_New_RedBloodBag(
+        INSERT INTO redblood_inventory (
+          donor_name, 
+          amount, 
+          hospital_id, 
+          expiration_date, 
+          blood_type, 
+          rh, 
+          active
+        ) VALUES (
           ${donorName},
           ${amount},
           ${hospitalId},
           ${expirationDate}::date,
           ${bloodType},
           ${rh},
-          ${adminUsername},
-          ${adminPassword}
+          true
         )
       `
 
@@ -937,5 +963,118 @@ export async function getAllHospitals() {
     return hospitals
   } catch (error) {
     throw logError(error, "Get All Hospitals")
+  }
+}
+
+// New function to soft-delete a blood inventory entry
+export async function softDeleteBloodEntry(bagId: number, entryType: string, hospitalId: number) {
+  try {
+    // Verify that the entry belongs to the hospital
+    const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
+    if (!ownershipCheck.success) {
+      return ownershipCheck
+    }
+
+    // Soft-delete the entry based on its type by setting active = false
+    let result
+    if (entryType === "RedBlood") {
+      result = await dbClient`
+        UPDATE redblood_inventory
+        SET active = false
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`redblood:${hospitalId}`)
+    } else if (entryType === "Plasma") {
+      result = await dbClient`
+        UPDATE plasma_inventory
+        SET active = false
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`plasma:${hospitalId}`)
+    } else if (entryType === "Platelets") {
+      result = await dbClient`
+        UPDATE platelets_inventory
+        SET active = false
+        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
+        RETURNING bag_id
+      `
+      // Invalidate cache
+      queryCache.invalidate(`platelets:${hospitalId}`)
+    } else {
+      return {
+        success: false,
+        error: "Invalid entry type",
+      }
+    }
+
+    if (result && result.length > 0) {
+      return { success: true }
+    } else {
+      return {
+        success: false,
+        error: "Failed to delete entry",
+      }
+    }
+  } catch (error) {
+    console.error("Error soft-deleting blood entry:", error)
+    const appError = logError(error, "Soft Delete Blood Entry")
+    return {
+      success: false,
+      error: appError.message,
+      details: appError.details,
+    }
+  }
+}
+
+// Helper function to verify entry ownership
+async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId: number) {
+  try {
+    let result
+    if (entryType === "RedBlood") {
+      result = await dbClient`
+        SELECT hospital_id FROM redblood_inventory WHERE bag_id = ${bagId} AND active = true
+      `
+    } else if (entryType === "Plasma") {
+      result = await dbClient`
+        SELECT hospital_id FROM plasma_inventory WHERE bag_id = ${bagId} AND active = true
+      `
+    } else if (entryType === "Platelets") {
+      result = await dbClient`
+        SELECT hospital_id FROM platelets_inventory WHERE bag_id = ${bagId} AND active = true
+      `
+    } else {
+      return {
+        success: false,
+        error: "Invalid entry type",
+      }
+    }
+
+    if (!result || result.length === 0) {
+      return {
+        success: false,
+        error: "Entry not found",
+      }
+    }
+
+    if (result[0].hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "You don't have permission to modify this entry",
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error verifying entry ownership:", error)
+    const appError = logError(error, "Verify Entry Ownership")
+    return {
+      success: false,
+      error: appError.message,
+      details: appError.details,
+    }
   }
 }
