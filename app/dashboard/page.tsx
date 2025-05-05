@@ -16,8 +16,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import DatabaseError from "@/components/database-error"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import Link from "next/link"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Droplets } from "lucide-react"
 import { redirect } from "next/navigation"
+import { Button } from "@/components/ui/button"
 
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
@@ -71,10 +72,16 @@ export default async function DashboardPage() {
           <main className="flex-1 container py-6 px-4 md:py-8">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold">Dashboard</h1>
-              <Link href="/diagnostics" className="text-sm text-primary hover:underline flex items-center">
-                <span>Data Diagnostics</span>
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Link>
+              <div className="flex gap-4">
+                <Link href="/surplus" className="text-sm text-primary hover:underline flex items-center">
+                  <Droplets className="h-4 w-4 mr-1" />
+                  <span>Surplus Management</span>
+                </Link>
+                <Link href="/diagnostics" className="text-sm text-primary hover:underline flex items-center">
+                  <span>Data Diagnostics</span>
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
             </div>
 
             {/* Top section: Chart and Warnings side by side */}
@@ -127,6 +134,15 @@ export default async function DashboardPage() {
 
             <div className="mb-8">
               <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
+                <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-xl font-semibold">Surplus Alerts</h2>
+                  <Link href="/surplus">
+                    <Button variant="outline" size="sm" className="flex items-center gap-1">
+                      <Droplets className="h-3.5 w-3.5" />
+                      Manage Surplus
+                    </Button>
+                  </Link>
+                </div>
                 <SurplusAlerts alerts={alerts} />
               </Suspense>
             </div>

@@ -1,97 +1,55 @@
 import Link from "next/link"
 import { getHospitalById } from "@/lib/db"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Menu } from "lucide-react"
 import NavLink from "./nav-link"
-import { AppError, ErrorType } from "@/lib/error-handling"
-import { LogoutButton } from "@/components/logout-button"
+import LogoutButton from "./logout-button"
+import DbConnectionStatus from "./db-connection-status"
+import FallbackModeIndicator from "./fallback-mode-indicator"
+import { Droplets } from "lucide-react"
 
-type HeaderProps = {
-  hospitalId: number
-}
-
-export default async function Header({ hospitalId }: HeaderProps) {
-  // Wrap in try-catch to handle any errors
-  let hospital
-  try {
-    hospital = await getHospitalById(hospitalId)
-  } catch (error) {
-    console.error("Error fetching hospital:", error)
-
-    // Use a generic name if there's a database error
-    if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
-      hospital = { hospital_name: "Hospital" }
-    } else {
-      throw error
-    }
-  }
+export default async function Header({ hospitalId }: { hospitalId: number }) {
+  // Fetch hospital data
+  const hospital = await getHospitalById(hospitalId)
 
   return (
-    <header className="bg-white border-b sticky top-0 z-10">
-      <div className="container flex h-16 items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
-              <span className="text-white font-bold">S</span>
-            </div>
-            <span className="font-bold text-xl hidden md:inline-block">Songblood</span>
+    <header className="bg-white border-b">
+      <div className="container flex items-center justify-between h-16 px-4">
+        <div className="flex items-center gap-8">
+          <Link href="/dashboard" className="font-bold text-xl text-primary">
+            Songblood
           </Link>
-          <span className="text-muted-foreground hidden md:inline-block">|</span>
-          <span className="text-sm md:text-base truncate max-w-[200px] md:max-w-none">
-            {hospital?.hospital_name || "Hospital"}
-          </span>
+          <nav className="hidden md:flex items-center gap-6">
+            <NavLink href="/dashboard">Dashboard</NavLink>
+            <NavLink href="/add-entry">Add Entry</NavLink>
+            <NavLink href="/donor-search">Donor Search</NavLink>
+            <NavLink href="/surplus">
+              <span className="flex items-center gap-1">
+                <Droplets className="h-4 w-4" />
+                Surplus
+              </span>
+            </NavLink>
+          </nav>
         </div>
-
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard" prefetch={true}>
-                  Dashboard
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/add-entry" prefetch={true}>
-                  Add Entry
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/donor-search" prefetch={true}>
-                  Donor Search
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/diagnostics" prefetch={true}>
-                  Data Diagnostics
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <LogoutButton mobile={true} />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex items-center gap-4">
+          <FallbackModeIndicator />
+          <DbConnectionStatus />
+          <div className="hidden md:block text-sm text-right">
+            <div className="font-medium">{hospital.hospital_name}</div>
+            <div className="text-muted-foreground text-xs">ID: {hospitalId}</div>
+          </div>
+          <LogoutButton />
         </div>
-
-        <nav className="hidden md:flex items-center gap-6">
-          <NavLink href="/dashboard" activeClassName="text-primary font-semibold">
-            Dashboard
+      </div>
+      <div className="md:hidden border-t">
+        <nav className="container flex items-center justify-between px-4 py-2 overflow-x-auto">
+          <NavLink href="/dashboard">Dashboard</NavLink>
+          <NavLink href="/add-entry">Add Entry</NavLink>
+          <NavLink href="/donor-search">Donor Search</NavLink>
+          <NavLink href="/surplus">
+            <span className="flex items-center gap-1">
+              <Droplets className="h-3.5 w-3.5" />
+              Surplus
+            </span>
           </NavLink>
-          <NavLink href="/add-entry" activeClassName="text-primary font-semibold">
-            Add Entry
-          </NavLink>
-          <NavLink href="/donor-search" activeClassName="text-primary font-semibold">
-            Donor Search
-          </NavLink>
-          <NavLink href="/diagnostics" activeClassName="text-primary font-semibold">
-            Data Diagnostics
-          </NavLink>
-          <LogoutButton variant="ghost" size="sm" className="ml-auto" />
         </nav>
       </div>
     </header>
