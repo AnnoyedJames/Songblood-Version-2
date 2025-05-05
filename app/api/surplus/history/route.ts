@@ -1,22 +1,21 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
+import { requireAuth } from "@/lib/auth"
 import { getSurplusTransferHistory } from "@/lib/surplus-utils"
-import { requireApiAuth } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
-    const session = await requireApiAuth(request)
-    if (!session.success) {
-      return NextResponse.json({ error: session.error }, { status: 401 })
-    }
+    const session = await requireAuth()
 
-    // Get query parameters
-    const searchParams = request.nextUrl.searchParams
-    const hospitalId = Number.parseInt(searchParams.get("hospitalId") || session.hospitalId.toString())
+    // Get hospitalId from query params or session
+    const url = new URL(request.url)
+    const hospitalId = url.searchParams.get("hospitalId")
+      ? Number.parseInt(url.searchParams.get("hospitalId")!)
+      : session.hospitalId
 
-    // Validate hospital ID
-    if (isNaN(hospitalId)) {
-      return NextResponse.json({ error: "Invalid hospital ID" }, { status: 400 })
+    // Verify the user has access to this hospital's data
+    if (hospitalId !== session.hospitalId) {
+      return NextResponse.json({ error: "Unauthorized access to hospital data" }, { status: 403 })
     }
 
     // Get transfer history
@@ -24,22 +23,12 @@ export async function GET(request: NextRequest) {
       const history = await getSurplusTransferHistory(hospitalId)
       return NextResponse.json(history)
     } catch (error: any) {
-      // Check if the error is about the missing table
-      if (
-        error.message &&
-        (error.message.includes('relation "surplus_transfers" does not exist') ||
-          error.message.includes("table surplus_transfers does not exist"))
-      ) {
-        console.warn("The surplus_transfers table does not exist yet. Returning empty array.")
-        return NextResponse.json([])
-      }
-
-      // Handle other errors
+      // Handle errors
       console.error("Error fetching surplus transfer history:", error)
-      return NextResponse.json({ error: "Failed to fetch transfer history", details: error.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch transfer history" }, { status: 500 })
     }
   } catch (error) {
-    console.error("Unhandled error in surplus history API:", error)
-    return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 })
+    console.error("Error in surplus history API:", error)
+    return NextResponse.json({ error: "Failed to fetch surplus transfer history" }, { status: 500 })
   }
 }

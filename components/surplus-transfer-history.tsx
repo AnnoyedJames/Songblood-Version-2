@@ -7,24 +7,37 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertTriangle } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
-import RunMigrationButton from "./run-migration-button"
+
+type TransferHistoryItem = {
+  transfer_id: number
+  from_hospital_id: number
+  to_hospital_id: number
+  from_hospital_name: string
+  to_hospital_name: string
+  type: string
+  blood_type: string
+  rh: string
+  amount: number
+  units: number
+  transfer_date: string
+}
 
 type SurplusTransferHistoryProps = {
-  initialHistory: any[]
+  initialHistory: TransferHistoryItem[]
   hospitalId: number
   refreshInterval?: number
-  limit?: number
   className?: string
+  limit?: number
 }
 
 export default function SurplusTransferHistory({
   initialHistory,
   hospitalId,
-  refreshInterval = 60000,
-  limit = 10,
+  refreshInterval = 60000, // Default to 1 minute
   className = "",
+  limit = 5,
 }: SurplusTransferHistoryProps) {
-  const [history, setHistory] = useState<any[]>(initialHistory || [])
+  const [history, setHistory] = useState<TransferHistoryItem[]>(initialHistory || [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
@@ -83,7 +96,7 @@ export default function SurplusTransferHistory({
     }
   }
 
-  // Check if the table exists
+  // Check if the table doesn't exist
   const tableDoesNotExist = history.length === 0 && error === null && initialHistory && initialHistory.length === 0
 
   return (
@@ -112,13 +125,14 @@ export default function SurplusTransferHistory({
             <AlertTriangle className="h-12 w-12 text-yellow-500 mb-4" />
             <h3 className="text-lg font-medium mb-2">Transfer History Not Available</h3>
             <p className="text-gray-500 max-w-md mb-4">
-              The transfer history feature is not set up yet. Please run the database migration to create the necessary
-              tables.
+              The transfer history feature is not set up yet. The database table "surplus_transfers" does not exist.
             </p>
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-left w-full mb-4">
               <p className="text-sm text-yellow-800 font-mono">Error: relation "surplus_transfers" does not exist</p>
             </div>
-            <RunMigrationButton />
+            <Button variant="default" className="mt-4" onClick={() => (window.location.href = "/diagnostics")}>
+              Go to Diagnostics
+            </Button>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-8">
@@ -154,9 +168,7 @@ export default function SurplusTransferHistory({
                   {history.slice(0, limit).map((transfer) => (
                     <TableRow key={transfer.transfer_id}>
                       <TableCell>
-                        <Badge className={getTypeBadgeColor(transfer.type)} variant="outline">
-                          {transfer.type}
-                        </Badge>
+                        <Badge className={getTypeBadgeColor(transfer.type)}>{transfer.type}</Badge>
                       </TableCell>
                       <TableCell className="font-medium">
                         {transfer.from_hospital_id === hospitalId ? "Your Hospital" : transfer.from_hospital_name}
