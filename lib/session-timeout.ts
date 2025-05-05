@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
+import { Button } from "@/components/ui/button"
 
 type SessionTimeoutOptions = {
   timeoutMinutes?: number
@@ -40,7 +41,7 @@ export function useSessionTimeout({
       setWarningShown(false)
       // Dismiss the warning toast if it exists
       if (warningToastId) {
-        toast.dismiss(warningToastId)
+        toast.dismiss?.(warningToastId)
         setWarningToastId(null)
       }
     }
@@ -179,20 +180,20 @@ export function useSessionTimeout({
           return
         }
 
+        // Create the action component for the toast
+        const actionComponent = (
+          <Button variant="outline" size="sm" onClick={resetTimer}>
+            Keep me logged in
+          </Button>
+        )
+
         // Show warning toast
         const id = toast({
           title: "Session expiring soon",
-          description: `Your session will expire in ${warningMinutes} minutes due to inactivity. Click anywhere to stay logged in.`,
+          description: `Your session will expire in ${warningMinutes} minutes due to inactivity.`,
           variant: "warning",
           duration: warningMs,
-          action: (
-            <button
-              onClick={resetTimer}
-              className="bg-white text-black px-3 py-1 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              Keep me logged in
-            </button>
-          ),
+          action: actionComponent,
         }).id
 
         setWarningToastId(id)

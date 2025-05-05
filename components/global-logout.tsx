@@ -2,41 +2,34 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useLogoutListener } from "@/lib/session-utils"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function GlobalLogout() {
   const router = useRouter()
-
-  // Use our enhanced logout listener
-  useLogoutListener()
+  const { toast } = useToast()
 
   useEffect(() => {
-    // Handle logout from localStorage (for backward compatibility)
-    const checkForLogout = () => {
-      if (localStorage.getItem("logout") === "true") {
-        console.log("Logout detected from localStorage")
-        localStorage.removeItem("logout")
+    // Listen for logout events from other tabs
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === "songblood_logout" && event.newValue) {
+        // Show toast notification
+        toast({
+          title: "Logged out",
+          description: "You have been logged out from another tab.",
+          variant: "destructive",
+        })
 
-        // Clear any client-side state
+        // Redirect to login page
         router.push("/login?reason=logout-global")
-
-        // Force a hard navigation
-        setTimeout(() => {
-          window.location.href = "/login?reason=logout-global"
-        }, 100)
       }
     }
 
-    // Check immediately
-    checkForLogout()
-
-    // Set up interval to check periodically
-    const interval = setInterval(checkForLogout, 1000)
+    window.addEventListener("storage", handleStorageChange)
 
     return () => {
-      clearInterval(interval)
+      window.removeEventListener("storage", handleStorageChange)
     }
-  }, [router])
+  }, [router, toast])
 
   return null
 }
