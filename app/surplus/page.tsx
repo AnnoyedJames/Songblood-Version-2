@@ -25,14 +25,39 @@ export default async function SurplusPage() {
     const session = await requireAuth()
     const { hospitalId } = session
 
-    // Parallel data fetching for better performance
-    const [alerts, hospitalSurplus, hospitalsNeeding, surplusSummary, transferHistory] = await Promise.all([
-      getEnhancedSurplusAlerts(hospitalId),
-      getHospitalSurplus(hospitalId),
-      getHospitalsNeedingSurplus(hospitalId),
-      getSurplusSummary(hospitalId),
-      getSurplusTransferHistory(hospitalId),
-    ])
+    // Parallel data fetching with error handling for each service
+    const [alertsResult, hospitalSurplusResult, hospitalsNeedingResult, surplusSummaryResult, transferHistoryResult] =
+      await Promise.allSettled([
+        getEnhancedSurplusAlerts(hospitalId),
+        getHospitalSurplus(hospitalId),
+        getHospitalsNeedingSurplus(hospitalId),
+        getSurplusSummary(hospitalId),
+        getSurplusTransferHistory(hospitalId),
+      ])
+
+    // Extract values or provide defaults for each result
+    const alerts = alertsResult.status === "fulfilled" ? alertsResult.value : []
+    const hospitalSurplus = hospitalSurplusResult.status === "fulfilled" ? hospitalSurplusResult.value : []
+    const hospitalsNeeding = hospitalsNeedingResult.status === "fulfilled" ? hospitalsNeedingResult.value : []
+    const surplusSummary =
+      surplusSummaryResult.status === "fulfilled"
+        ? surplusSummaryResult.value
+        : {
+            redBlood: { surplus: 0, optimal: 0, low: 0, critical: 0 },
+            plasma: { surplus: 0, optimal: 0, low: 0, critical: 0 },
+            platelets: { surplus: 0, optimal: 0, low: 0, critical: 0 },
+          }
+    const transferHistory = transferHistoryResult.status === "fulfilled" ? transferHistoryResult.value : []
+
+    // Log any errors for debugging
+    ;[alertsResult, hospitalSurplusResult, hospitalsNeedingResult, surplusSummaryResult, transferHistoryResult].forEach(
+      (result, index) => {
+        if (result.status === "rejected") {
+          const services = ["alerts", "hospitalSurplus", "hospitalsNeeding", "surplusSummary", "transferHistory"]
+          console.error(`Error fetching ${services[index]}:`, result.reason)
+        }
+      },
+    )
 
     return (
       <div className="min-h-screen flex flex-col">

@@ -524,23 +524,39 @@ export async function getSurplusTransferHistory(hospitalId: number): Promise<any
       return cached
     }
 
-    // Get transfers where this hospital is either sender or receiver
-    const transfers = await dbClient`
-      SELECT 
-        st.*,
-        h1.hospital_name as from_hospital_name,
-        h2.hospital_name as to_hospital_name
-      FROM surplus_transfers st
-      JOIN hospital h1 ON st.from_hospital_id = h1.hospital_id
-      JOIN hospital h2 ON st.to_hospital_id = h2.hospital_id
-      WHERE st.from_hospital_id = ${hospitalId} OR st.to_hospital_id = ${hospitalId}
-      ORDER BY st.transfer_date DESC
-      LIMIT 100
-    `
+    try {
+      // Get transfers where this hospital is either sender or receiver
+      const transfers = await dbClient`
+        SELECT 
+          st.*,
+          h1.hospital_name as from_hospital_name,
+          h2.hospital_name as to_hospital_name
+        FROM surplus_transfers st
+        JOIN hospital h1 ON st.from_hospital_id = h1.hospital_id
+        JOIN hospital h2 ON st.to_hospital_id = h2.hospital_id
+        WHERE st.from_hospital_id = ${hospitalId} OR st.to_hospital_id = ${hospitalId}
+        ORDER BY st.transfer_date DESC
+        LIMIT 100
+      `
 
-    queryCache.set(cacheKey, transfers, 5 * 60) // Cache for 5 minutes
-    return transfers
+      queryCache.set(cacheKey, transfers, 5 * 60) // Cache for 5 minutes
+      return transfers
+    } catch (dbError: any) {
+      // Check if the error is about the missing table
+      if (
+        dbError.message &&
+        (dbError.message.includes('relation "surplus_transfers" does not exist') ||
+          dbError.message.includes("table surplus_transfers does not exist"))
+      ) {
+        console.warn("The surplus_transfers table does not exist yet. Returning empty array.")
+        return []
+      }
+      // Re-throw other errors
+      throw dbError
+    }
   } catch (error) {
-    throw logError(error, "Get Surplus Transfer History")
+    console.error("Error in getSurplusTransferHistory:", error)
+    // Return empty array instead of throwing
+    return []
   }
 }

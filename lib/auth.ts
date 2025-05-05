@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { verifyAdminCredentials, registerAdmin } from "./db"
 import { AppError, ErrorType, logError } from "./error-handling"
+import type { NextRequest } from "next/server"
 
 // Session management
 export async function createSession(adminId: number, hospitalId: number, username?: string, password?: string) {
@@ -196,5 +197,23 @@ export async function isAuthenticated() {
   } catch (error) {
     console.error("Error checking authentication:", error)
     return false
+  }
+}
+
+// Authentication middleware for API routes
+export async function requireApiAuth(
+  request: NextRequest,
+): Promise<{ success: boolean; hospitalId?: number; error?: string }> {
+  try {
+    const session = await getSession()
+
+    if (!session) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    return { success: true, hospitalId: session.hospitalId }
+  } catch (error) {
+    console.error("API authentication error:", error)
+    return { success: false, error: "Internal server error" }
   }
 }
