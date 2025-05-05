@@ -2,55 +2,41 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
-import { useSession } from "@/components/session-provider"
+import { useLogoutListener } from "@/lib/session-utils"
 
 export default function GlobalLogout() {
   const router = useRouter()
-  const { toast } = useToast()
-  const { isAuthenticated, checkSession } = useSession()
 
-  // Listen for storage events to detect logout from other tabs
+  // Use our enhanced logout listener
+  useLogoutListener()
+
   useEffect(() => {
-    const handleStorageChange = async (event: StorageEvent) => {
-      if (event.key === "logout" && event.newValue === "true") {
-        // Another tab logged out, check our session
-        const stillAuthenticated = await checkSession()
+    // Handle logout from localStorage (for backward compatibility)
+    const checkForLogout = () => {
+      if (localStorage.getItem("logout") === "true") {
+        console.log("Logout detected from localStorage")
+        localStorage.removeItem("logout")
 
-        if (!stillAuthenticated) {
-          toast({
-            title: "Logged out in another tab",
-            description: "Your session was ended in another browser tab.",
-            variant: "default",
-          })
+        // Clear any client-side state
+        router.push("/login?reason=logout-global")
 
-          router.push("/login?reason=logged-out-elsewhere")
-        }
+        // Force a hard navigation
+        setTimeout(() => {
+          window.location.href = "/login?reason=logout-global"
+        }, 100)
       }
     }
 
-    window.addEventListener("storage", handleStorageChange)
+    // Check immediately
+    checkForLogout()
+
+    // Set up interval to check periodically
+    const interval = setInterval(checkForLogout, 1000)
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange)
+      clearInterval(interval)
     }
-  }, [router, toast, checkSession])
+  }, [router])
 
-  // Add a global keyboard shortcut for logout (Ctrl+Alt+L)
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.altKey && event.key === "l" && isAuthenticated) {
-        event.preventDefault()
-        document.getElementById("global-logout-button")?.click()
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [isAuthenticated])
-
-  return null // This component doesn't render anything
+  return null
 }

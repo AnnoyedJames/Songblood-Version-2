@@ -1,72 +1,71 @@
-import { getSession } from "@/lib/auth"
-import { redirect } from "next/navigation"
+// Add a custom error boundary for the login page to prevent the global error boundary from being used
+// This ensures that any errors in the login page don't trigger the global error boundary
+
+"use client"
+
+import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import LoginForm from "./login-form"
-import DbConnectionStatus from "@/components/db-connection-status"
-import RedirectHandler from "@/components/redirect-handler"
-import FallbackModeIndicator from "@/components/fallback-mode-indicator"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
+import { ErrorBoundary } from "react-error-boundary"
 
-// Force dynamic rendering since we're using cookies
-export const dynamic = "force-dynamic"
-
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: { registered?: string; reason?: string; returnTo?: string }
-}) {
-  const session = await getSession()
-
-  if (session) {
-    // If there's a returnTo parameter, redirect there after login
-    if (searchParams.returnTo) {
-      const decodedReturnTo = decodeURIComponent(searchParams.returnTo)
-      // Validate the returnTo URL to prevent open redirect vulnerabilities
-      if (decodedReturnTo.startsWith("/") && !decodedReturnTo.includes("//")) {
-        redirect(decodedReturnTo)
-      }
-    }
-    redirect("/dashboard")
-  }
-
-  const justRegistered = searchParams.registered === "true"
-  const redirectReason = searchParams.reason
-  const returnTo = searchParams.returnTo
-
+function LoginErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center mx-auto">
-            <span className="text-white font-bold text-xl">S</span>
-          </div>
-          <h1 className="mt-4 text-3xl font-bold">Songblood</h1>
-          <p className="mt-2 text-gray-600">Hospital Blood Inventory Management</p>
-          {justRegistered && (
-            <div className="mt-4 p-2 bg-green-50 text-green-700 rounded-md">
-              Registration successful! Please log in with your new credentials.
-            </div>
-          )}
-          {redirectReason === "session-timeout" && (
-            <div className="mt-4 p-3 bg-amber-50 text-amber-700 rounded-md border border-amber-200">
-              <p className="font-medium">Your session has expired</p>
-              <p className="text-sm mt-1">Please log in again to continue your work.</p>
-              {returnTo && <p className="text-xs mt-2">You'll be redirected back to your previous page after login.</p>}
-            </div>
-          )}
-        </div>
-
-        <FallbackModeIndicator />
-        {redirectReason && <RedirectHandler reason={redirectReason} />}
-        <DbConnectionStatus />
-        <LoginForm returnTo={returnTo} />
-
-        <div className="mt-4 text-center">
-          <Button variant="outline" asChild className="w-full">
-            <Link href="/register">Don't have an account? Register</Link>
-          </Button>
-        </div>
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error.message || "An error occurred while loading the login page. Please try again."}
+          </AlertDescription>
+        </Alert>
+        <button onClick={resetErrorBoundary} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Try Again
+        </button>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const returnTo = searchParams?.get("returnTo") || ""
+  const reason = searchParams?.get("reason") || ""
+  const [showAlert, setShowAlert] = useState(!!reason)
+
+  let alertMessage = ""
+  if (reason === "session-timeout") {
+    alertMessage = "Your session has timed out. Please log in again."
+  } else if (reason === "unauthorized") {
+    alertMessage = "Please log in to access that page."
+  } else if (reason === "logout") {
+    alertMessage = "You have been logged out successfully."
+  } else if (reason === "logout-global") {
+    alertMessage = "You have been logged out from another tab."
+  } else if (reason === "error-redirect") {
+    alertMessage = "An error occurred. Please log in again."
+  }
+
+  return (
+    <ErrorBoundary FallbackComponent={LoginErrorFallback} onReset={() => window.location.reload()}>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold">Songblood</h1>
+            <p className="text-gray-600">Blood Inventory Management System</p>
+          </div>
+
+          {showAlert && alertMessage && (
+            <Alert variant="info" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{alertMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <LoginForm returnTo={returnTo} />
+        </div>
+      </div>
+    </ErrorBoundary>
   )
 }

@@ -39,10 +39,13 @@ export async function getSession() {
   }
 }
 
-// Update the clearSession function to ensure all cookies are properly cleared
+// Enhanced clearSession function to ensure all cookies are properly cleared
 export async function clearSession() {
   try {
-    // Clear all authentication-related cookies with proper options
+    // Log the session clearing attempt
+    console.log("Clearing session...")
+
+    // Define cookie options for clearing
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -53,23 +56,56 @@ export async function clearSession() {
 
     // Get all cookies to ensure we don't miss any
     const allCookies = cookies().getAll()
+    console.log(`Found ${allCookies.length} cookies to examine`)
 
-    // Clear all authentication cookies
-    cookies().set("adminId", "", cookieOptions)
-    cookies().set("hospitalId", "", cookieOptions)
-    cookies().set("adminUsername", "", cookieOptions)
-    cookies().set("adminPassword", "", cookieOptions)
-    cookies().set("fallbackMode", "", cookieOptions)
-    cookies().set("sessionToken", "", cookieOptions)
+    // List of known authentication cookies to explicitly clear
+    const authCookies = [
+      "adminId",
+      "hospitalId",
+      "adminUsername",
+      "adminPassword",
+      "fallbackMode",
+      "sessionToken",
+      "authToken",
+      "refreshToken",
+    ]
+
+    // Clear known authentication cookies
+    for (const cookieName of authCookies) {
+      cookies().set(cookieName, "", cookieOptions)
+      console.log(`Cleared cookie: ${cookieName}`)
+    }
 
     // Clear any other session-related cookies that might exist
+    let additionalCookiesCleared = 0
     for (const cookie of allCookies) {
+      // Skip cookies we've already cleared
+      if (authCookies.includes(cookie.name)) {
+        continue
+      }
+
+      // Clear cookies that match authentication patterns
       if (
         cookie.name.toLowerCase().includes("session") ||
         cookie.name.toLowerCase().includes("token") ||
-        cookie.name.toLowerCase().includes("auth")
+        cookie.name.toLowerCase().includes("auth") ||
+        cookie.name.toLowerCase().includes("login") ||
+        cookie.name.toLowerCase().includes("user") ||
+        cookie.name.toLowerCase().includes("admin")
       ) {
         cookies().set(cookie.name, "", cookieOptions)
+        additionalCookiesCleared++
+      }
+    }
+
+    console.log(`Cleared ${additionalCookiesCleared} additional cookies`)
+
+    // Try clearing with different paths for thoroughness
+    const additionalPaths = ["/dashboard", "/login", "/register", "/api"]
+    for (const path of additionalPaths) {
+      const pathOptions = { ...cookieOptions, path }
+      for (const cookieName of authCookies) {
+        cookies().set(cookieName, "", pathOptions)
       }
     }
 
@@ -78,6 +114,7 @@ export async function clearSession() {
 
     return true
   } catch (error) {
+    console.error("Error clearing session:", error)
     throw logError(error, "Clear Session")
   }
 }

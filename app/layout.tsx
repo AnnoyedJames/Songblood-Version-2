@@ -1,7 +1,7 @@
 import type React from "react"
 import "./globals.css"
 import { Inter } from "next/font/google"
-import { Toaster } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toaster"
 import SessionProvider from "@/components/session-provider"
 import GlobalLogout from "@/components/global-logout"
 import SessionMonitor from "@/components/session-monitor"

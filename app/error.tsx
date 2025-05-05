@@ -19,6 +19,23 @@ export default function Error({
   const [redirecting, setRedirecting] = useState(false)
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
 
+  // Ensure reset is a function
+  const handleReset = () => {
+    if (typeof reset === "function") {
+      try {
+        reset()
+      } catch (e) {
+        console.error("Error when calling reset:", e)
+        // Fallback if reset fails
+        window.location.reload()
+      }
+    } else {
+      console.warn("Reset is not a function, using fallback")
+      // Fallback if reset is not a function
+      window.location.reload()
+    }
+  }
+
   useEffect(() => {
     // Log the error to an error reporting service
     console.error("Application error:", error)
@@ -92,7 +109,7 @@ export default function Error({
         </Alert>
 
         <div className="flex justify-center gap-4">
-          <Button onClick={() => reset()} className="gap-2">
+          <Button onClick={handleReset} className="gap-2">
             <RefreshCw className="h-4 w-4" />
             Try again
           </Button>
