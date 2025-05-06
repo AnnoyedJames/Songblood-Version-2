@@ -42,14 +42,3 @@ export function getDatabaseUrl(): string | undefined {
 
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL
 }
-
-/**
- * Check if we should use fallback mode
- */
-export function shouldUseFallbackMode(): boolean {
-  // Always use fallback on the client
-  if (isClient) return true
-
-  // Use fallback in development or preview environments
-  return isDevOrPreview()
-}

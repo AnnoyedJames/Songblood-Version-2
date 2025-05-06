@@ -1,59 +1,31 @@
 import { NextResponse } from "next/server"
 import { searchDonors } from "@/lib/db"
-import { cookies } from "next/headers"
-import { AppError, ErrorType, logError } from "@/lib/error-handling"
-
-// Force dynamic rendering for API routes that use cookies
-export const dynamic = "force-dynamic"
+import { getSessionData } from "@/lib/session-utils"
 
 export async function GET(request: Request) {
   try {
-    // Get session
-    const cookieStore = cookies()
-    const adminId = cookieStore.get("adminId")?.value
-    const hospitalId = cookieStore.get("hospitalId")?.value
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get("query")
+    const showInactive = searchParams.get("showInactive") === "true"
 
-    if (!adminId || !hospitalId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized",
-          type: ErrorType.AUTHENTICATION,
-        },
-        { status: 401 },
-      )
+    // Validate query parameter
+    if (!query) {
+      return NextResponse.json({ error: "Query parameter is required" }, { status: 400 })
     }
 
-    // Get search query
-    const url = new URL(request.url)
-    const query = url.searchParams.get("q") || ""
+    // Get session data to check if user is authenticated
+    const session = await getSessionData()
+    if (!session || !session.isLoggedIn) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    }
 
-    // Search donors
-    const results = await searchDonors(query)
+    // Search for donors
+    const results = await searchDonors(query, showInactive)
 
-    return NextResponse.json({ success: true, results })
+    return NextResponse.json({ results })
   } catch (error) {
-    // Handle different error types
-    if (error instanceof AppError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          type: error.type,
-        },
-        { status: error.type === ErrorType.AUTHENTICATION ? 401 : 500 },
-      )
-    }
+    console.error("Error in search API:", error)
 
-    // Handle unexpected errors
-    const appError = logError(error, "Search API")
-    return NextResponse.json(
-      {
-        success: false,
-        error: appError.message,
-        type: appError.type,
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Failed to search donors. Please try again later." }, { status: 500 })
   }
 }

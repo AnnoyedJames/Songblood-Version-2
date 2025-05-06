@@ -5,82 +5,12 @@ import { configureNeon } from "./db-config"
 import { retryWithBackoff } from "./retry-utils"
 
 // Configure Neon with optimal settings
-neonConfig.fetchRetryTimeout = 15000 // 15 seconds timeout (increased from 10)
+neonConfig.fetchRetryTimeout = 15000 // 15 seconds timeout
 neonConfig.fetchRetryCount = 2 // Reduced from 3 to fail faster when there's a persistent issue
-neonConfig.wsConnectionTimeoutMs = 15000 // 15 seconds WebSocket timeout (increased from 10)
+neonConfig.wsConnectionTimeoutMs = 15000 // 15 seconds WebSocket timeout
 
 // Initialize Neon configuration
 configureNeon()
-
-// Sample data for fallback mode when database is unavailable
-const FALLBACK_DATA = {
-  hospitals: [
-    {
-      hospital_id: 1,
-      hospital_name: "โรงพยาบาลจุฬาลงกรณ์",
-      hospital_contact_mail: "info@chulalongkornhospital.go.th",
-      hospital_contact_phone: "02-256-4000",
-    },
-    {
-      hospital_id: 2,
-      hospital_name: "โรงพยาบาลศิริราช",
-      hospital_contact_mail: "info@sirirajhospital.com",
-      hospital_contact_phone: "02-419-7000",
-    },
-  ],
-  admins: [
-    { admin_id: 1, admin_username: "Panya", admin_password: "P9aDhR8e", hospital_id: 1 },
-    { admin_id: 2, admin_username: "Manasnan", admin_password: "M7nA7sL1k", hospital_id: 2 },
-    { admin_id: 3, admin_username: "demo", admin_password: "demo", hospital_id: 1 },
-  ],
-  surplus_alerts: [
-    {
-      type: "RedBlood",
-      bloodType: "A",
-      rh: "+",
-      hospitalName: "โรงพยาบาลศิริราช",
-      hospitalId: 2,
-      count: 15,
-      yourCount: 3,
-    },
-    {
-      type: "Plasma",
-      bloodType: "O",
-      rh: "",
-      hospitalName: "โรงพยาบาลศิริราช",
-      hospitalId: 2,
-      count: 12,
-      yourCount: 2,
-    },
-  ],
-  donors: [
-    {
-      type: "RedBlood",
-      bag_id: 1001,
-      donor_name: "สมชาย ใจดี",
-      blood_type: "A",
-      rh: "+",
-      amount: 450,
-      expiration_date: "2023-12-31",
-      hospital_name: "โรงพยาบาลจุฬาลงกรณ์",
-      hospital_contact_phone: "02-256-4000",
-    },
-    {
-      type: "Plasma",
-      bag_id: 2001,
-      donor_name: "สมหญิง มีน้ำใจ",
-      blood_type: "O",
-      rh: "",
-      amount: 300,
-      expiration_date: "2023-12-15",
-      hospital_name: "โรงพยาบาลศิริราช",
-      hospital_contact_phone: "02-419-7000",
-    },
-  ],
-}
-
-// Flag to track if we're in fallback mode
-let IS_FALLBACK_MODE = false
 
 // Track connection errors for reporting
 let CONNECTION_ERROR_MESSAGE = ""
@@ -98,20 +28,13 @@ try {
     console.log("Database client initialized successfully")
   } else {
     console.warn("DATABASE_URL is not defined, database client not initialized")
-    IS_FALLBACK_MODE = true
     CONNECTION_ERROR_MESSAGE = "Database connection string is missing"
+    throw new Error("DATABASE_URL environment variable is not defined")
   }
 } catch (error) {
   console.error("Failed to initialize database client:", error)
-  IS_FALLBACK_MODE = true
   CONNECTION_ERROR_MESSAGE = error instanceof Error ? error.message : "Unknown database initialization error"
-}
-
-// Immediately activate fallback mode for development/preview environments
-// This helps when the database is not accessible from preview deployments
-if (process.env.NODE_ENV !== "production") {
-  console.log("Non-production environment detected. Enabling fallback mode by default.")
-  IS_FALLBACK_MODE = true
+  throw error // Re-throw to prevent application from starting without a database
 }
 
 export const sql = async (query: string, ...args: any[]) => {
@@ -119,7 +42,6 @@ export const sql = async (query: string, ...args: any[]) => {
     // Check if DATABASE_URL is defined
     if (!process.env.DATABASE_URL || !dbClient) {
       CONNECTION_ERROR_MESSAGE = "Database connection string is missing"
-      IS_FALLBACK_MODE = true
       throw new AppError(
         ErrorType.DATABASE_CONNECTION,
         "Database connection string is missing",
@@ -138,7 +60,7 @@ export const sql = async (query: string, ...args: any[]) => {
             "Query execution exceeded timeout limit",
           ),
         )
-      }, 15000) // Increased from 10000
+      }, 15000)
     })
 
     try {
@@ -153,7 +75,6 @@ export const sql = async (query: string, ...args: any[]) => {
           : "Failed to connect to database"
 
       console.error("Database connection error:", fetchError)
-      IS_FALLBACK_MODE = true
       throw new AppError(
         ErrorType.DATABASE_CONNECTION,
         "Failed to connect to database",
@@ -167,7 +88,6 @@ export const sql = async (query: string, ...args: any[]) => {
 
     // Convert and log the error
     const appError = logError(error, "Database Query")
-    IS_FALLBACK_MODE = true
 
     // Rethrow the error to be handled by the caller
     throw appError
@@ -177,31 +97,12 @@ export const sql = async (query: string, ...args: any[]) => {
 // Function to test database connection with retry logic
 export async function testDatabaseConnection(): Promise<{ connected: boolean; error?: string }> {
   try {
-    // If we're already in fallback mode, don't bother testing
-    if (IS_FALLBACK_MODE) {
-      return {
-        connected: false,
-        error: CONNECTION_ERROR_MESSAGE || "Application is in fallback mode",
-      }
-    }
-
     // Check if DATABASE_URL is defined
     if (!process.env.DATABASE_URL) {
       CONNECTION_ERROR_MESSAGE = "Database connection string is missing"
-      IS_FALLBACK_MODE = true
       return {
         connected: false,
         error: "Database connection string is missing",
-      }
-    }
-
-    // For non-production environments, we'll skip the actual connection test
-    // and just return a simulated success to avoid connection errors in preview
-    if (process.env.NODE_ENV !== "production") {
-      console.log("Non-production environment detected. Skipping actual database connection test.")
-      return {
-        connected: true,
-        simulated: true,
       }
     }
 
@@ -212,7 +113,7 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
         reject(new Error("Database connection timed out"))
-      }, 15000) // Increased from 10000
+      }, 15000)
     })
 
     // Implement retry logic for the connection test
@@ -222,7 +123,6 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
           // Use the tagged template literal syntax for the query
           // Race the database query against the timeout
           await Promise.race([testClient`SELECT 1 as connection_test`, timeoutPromise])
-          IS_FALLBACK_MODE = false // Reset fallback mode if connection succeeds
           return { connected: true }
         } catch (fetchError) {
           // Handle fetch errors specifically
@@ -233,16 +133,15 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
 
           CONNECTION_ERROR_MESSAGE = errorMessage
           console.error("Database connection test failed:", fetchError)
-          IS_FALLBACK_MODE = true
 
           // Throw to trigger retry
           throw new Error(errorMessage)
         }
       },
       {
-        maxRetries: 1, // Reduced from 3 to fail faster
+        maxRetries: 1,
         initialDelayMs: 1000,
-        maxDelayMs: 3000, // Reduced from 5000
+        maxDelayMs: 3000,
         backoffFactor: 2,
         onRetry: (attempt, error) => {
           console.log(`Retrying database connection (attempt ${attempt}/1): ${error.message}`)
@@ -250,7 +149,6 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
       },
     ).catch((error) => {
       // After all retries failed
-      IS_FALLBACK_MODE = true
       return {
         connected: false,
         error: error.message || "Failed to connect to database after multiple attempts",
@@ -262,7 +160,6 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
 
     CONNECTION_ERROR_MESSAGE = errorMessage
     console.error("Database connection test error:", error)
-    IS_FALLBACK_MODE = true
 
     return {
       connected: false,
@@ -274,40 +171,22 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
 // but don't block the application startup
 ;(async () => {
   try {
-    // For non-production environments, we'll skip the actual connection test
-    if (process.env.NODE_ENV !== "production") {
-      console.log("Non-production environment detected. Skipping database initialization test.")
-      return
-    }
-
     const { connected, error } = await testDatabaseConnection()
     if (connected) {
       console.log("Database connection successful")
-      IS_FALLBACK_MODE = false
     } else {
-      console.warn(`Database connection failed: ${error}. Application will use fallback mode.`)
+      console.error(`Database connection failed: ${error}. Application will not function correctly.`)
       CONNECTION_ERROR_MESSAGE = error || "Failed to connect to database"
-      IS_FALLBACK_MODE = true
     }
   } catch (error) {
     console.error("Unexpected error during database initialization:", error)
     CONNECTION_ERROR_MESSAGE = error instanceof Error ? error.message : String(error)
-    IS_FALLBACK_MODE = true
   }
 })()
 
 // Helper function to get hospital data by ID
 export async function getHospitalById(hospitalId: number) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      const hospital = FALLBACK_DATA.hospitals.find((h) => h.hospital_id === hospitalId)
-      if (!hospital) {
-        throw new AppError(ErrorType.NOT_FOUND, "Hospital not found")
-      }
-      return hospital
-    }
-
     const cacheKey = `hospital:${hospitalId}`
     const cached = queryCache.get(cacheKey)
 
@@ -327,13 +206,6 @@ export async function getHospitalById(hospitalId: number) {
     queryCache.set(cacheKey, result[0])
     return result[0]
   } catch (error) {
-    // If in fallback mode, try to return fallback data
-    if (IS_FALLBACK_MODE) {
-      const hospital = FALLBACK_DATA.hospitals.find((h) => h.hospital_id === hospitalId)
-      if (hospital) {
-        return hospital
-      }
-    }
     throw logError(error, "Get Hospital")
   }
 }
@@ -341,12 +213,6 @@ export async function getHospitalById(hospitalId: number) {
 // Helper function to verify admin credentials
 export async function verifyAdminCredentials(username: string, password: string) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      const admin = FALLBACK_DATA.admins.find((a) => a.admin_username === username && a.admin_password === password)
-      return admin || null
-    }
-
     // Use tagged template literal syntax
     const result = await dbClient`
       SELECT admin_id, hospital_id FROM admin 
@@ -355,12 +221,6 @@ export async function verifyAdminCredentials(username: string, password: string)
 
     return result[0] || null
   } catch (error) {
-    // If in fallback mode, try to return fallback data
-    if (IS_FALLBACK_MODE) {
-      const admin = FALLBACK_DATA.admins.find((a) => a.admin_username === username && a.admin_password === password)
-      return admin || null
-    }
-
     // Log the error but don't expose it to the caller
     logError(error, "Verify Admin Credentials")
     return null
@@ -370,21 +230,6 @@ export async function verifyAdminCredentials(username: string, password: string)
 // Helper function to get blood inventory for a hospital
 export async function getBloodInventory(hospitalId: number) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      // Return sample data in fallback mode
-      return [
-        { blood_type: "A", rh: "+", count: 15, total_amount: 4500 },
-        { blood_type: "A", rh: "-", count: 5, total_amount: 1500 },
-        { blood_type: "B", rh: "+", count: 12, total_amount: 3600 },
-        { blood_type: "B", rh: "-", count: 3, total_amount: 900 },
-        { blood_type: "AB", rh: "+", count: 8, total_amount: 2400 },
-        { blood_type: "AB", rh: "-", count: 2, total_amount: 600 },
-        { blood_type: "O", rh: "+", count: 20, total_amount: 6000 },
-        { blood_type: "O", rh: "-", count: 7, total_amount: 2100 },
-      ]
-    }
-
     const cacheKey = `redblood:${hospitalId}`
     const cached = queryCache.get<any[]>(cacheKey)
 
@@ -414,18 +259,8 @@ export async function getBloodInventory(hospitalId: number) {
     queryCache.set(cacheKey, processedData)
     return processedData
   } catch (error) {
-    // Return sample data in case of error
     console.error("Error fetching blood inventory:", error)
-    return [
-      { blood_type: "A", rh: "+", count: 15, total_amount: 4500 },
-      { blood_type: "A", rh: "-", count: 5, total_amount: 1500 },
-      { blood_type: "B", rh: "+", count: 12, total_amount: 3600 },
-      { blood_type: "B", rh: "-", count: 3, total_amount: 900 },
-      { blood_type: "AB", rh: "+", count: 8, total_amount: 2400 },
-      { blood_type: "AB", rh: "-", count: 2, total_amount: 600 },
-      { blood_type: "O", rh: "+", count: 20, total_amount: 6000 },
-      { blood_type: "O", rh: "-", count: 7, total_amount: 2100 },
-    ]
+    throw logError(error, "Get Blood Inventory")
   }
 }
 
@@ -473,14 +308,6 @@ export async function addNewRedBloodBag(
         type: ErrorType.AUTHENTICATION,
         details: "You don't have permission to add entries for this hospital.",
         retryable: false,
-      }
-    }
-
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      return {
-        success: true, // Simulate success in fallback mode
-        fallback: true,
       }
     }
 
@@ -541,7 +368,7 @@ export async function addNewRedBloodBag(
           success: false,
           error: "Database connection lost",
           type: ErrorType.DATABASE_CONNECTION,
-          details: "The connection to the database was lost. Please try again.",
+          details: "The connection to the database was lost. Please try again later.",
           retryable: true,
         }
       }
@@ -607,14 +434,6 @@ export async function addNewPlasmaBag(
         type: ErrorType.AUTHENTICATION,
         details: "You don't have permission to add entries for this hospital.",
         retryable: false,
-      }
-    }
-
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      return {
-        success: true, // Simulate success in fallback mode
-        fallback: true,
       }
     }
 
@@ -743,14 +562,6 @@ export async function addNewPlateletsBag(
       }
     }
 
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      return {
-        success: true, // Simulate success in fallback mode
-        fallback: true,
-      }
-    }
-
     // Use tagged template literal syntax with error handling
     try {
       // Modified to include active=true
@@ -833,10 +644,6 @@ export async function addNewPlateletsBag(
 
 // Function to check database connection with improved error handling
 export async function checkDatabaseConnection() {
-  if (IS_FALLBACK_MODE) {
-    return false
-  }
-
   try {
     // Implement retry logic for the connection check
     return await retryWithBackoff(
@@ -844,11 +651,9 @@ export async function checkDatabaseConnection() {
         try {
           // Use tagged template literal syntax
           await dbClient`SELECT 1`
-          IS_FALLBACK_MODE = false // Reset fallback mode if connection succeeds
           return true
         } catch (error) {
           console.error("Database connection check failed:", error)
-          IS_FALLBACK_MODE = true
           // Throw to trigger retry
           throw error
         }
@@ -865,44 +670,22 @@ export async function checkDatabaseConnection() {
     ).catch((error) => {
       // After all retries failed
       console.error("All database connection check retries failed:", error)
-      IS_FALLBACK_MODE = true
       return false
     })
   } catch (error) {
     // Handle any other errors
     console.error("Database connection check error:", error)
-    IS_FALLBACK_MODE = true
     return false
   }
 }
 
-// Function to get fallback mode status
-export function isFallbackMode() {
-  return IS_FALLBACK_MODE
+// Function to get connection error message
+export function getConnectionErrorMessage() {
+  return CONNECTION_ERROR_MESSAGE
 }
 
 // Add this function to the existing db.ts file
 export async function registerAdmin(username: string, password: string, hospitalId: number) {
-  // Check if we're in fallback mode
-  if (IS_FALLBACK_MODE) {
-    // In fallback mode, simulate registration
-    const existingAdmin = FALLBACK_DATA.admins.find((a) => a.admin_username === username)
-    if (existingAdmin) {
-      return { success: false, error: "Username already exists" }
-    }
-
-    // Add to fallback data (this won't persist across server restarts)
-    const newAdminId = FALLBACK_DATA.admins.length + 1
-    FALLBACK_DATA.admins.push({
-      admin_id: newAdminId,
-      admin_username: username,
-      admin_password: password,
-      hospital_id: hospitalId,
-    })
-
-    return { success: true }
-  }
-
   try {
     // First check if the hospital exists
     // Use tagged template literal syntax
@@ -942,22 +725,9 @@ export async function registerAdmin(username: string, password: string, hospital
   }
 }
 
-// Function to get connection error message
-export function getConnectionErrorMessage() {
-  return CONNECTION_ERROR_MESSAGE
-}
-
 // Helper function to get all hospitals for dropdown lists
 export async function getAllHospitals() {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      return FALLBACK_DATA.hospitals.map((h) => ({
-        hospital_id: h.hospital_id,
-        hospital_name: h.hospital_name,
-      }))
-    }
-
     const cacheKey = "all-hospitals"
     const cached = queryCache.get(cacheKey)
 
@@ -975,28 +745,14 @@ export async function getAllHospitals() {
     queryCache.set(cacheKey, hospitals)
     return hospitals
   } catch (error) {
-    // If in fallback mode, return fallback data
-    if (IS_FALLBACK_MODE) {
-      return FALLBACK_DATA.hospitals.map((h) => ({
-        hospital_id: h.hospital_id,
-        hospital_name: h.hospital_name,
-      }))
-    }
-
     console.error("Error fetching hospitals:", error)
-    return [] // Return empty array in case of error
+    throw logError(error, "Get All Hospitals")
   }
 }
 
 // Helper function to get surplus alerts
 export async function getSurplusAlerts(hospitalId: number) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      // Return sample data in fallback mode
-      return FALLBACK_DATA.surplus_alerts
-    }
-
     // Get current hospital's inventory
     // Use tagged template literal syntax - now filtering for active=true
     const currentHospitalInventory = await dbClient`
@@ -1090,105 +846,96 @@ export async function getSurplusAlerts(hospitalId: number) {
 
     return alerts
   } catch (error) {
-    // Return sample data in case of error
     console.error("Error fetching surplus alerts:", error)
-    return FALLBACK_DATA.surplus_alerts
+    throw logError(error, "Get Surplus Alerts")
   }
 }
 
 // Helper function to search for donors
-export async function searchDonors(query: string) {
+export async function searchDonors(query: string, showInactive = false) {
   if (!query || query.trim() === "") return []
 
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      // Return sample data in fallback mode
-      return FALLBACK_DATA.donors.filter(
-        (donor) => donor.donor_name.toLowerCase().includes(query.toLowerCase()) || donor.bag_id.toString() === query,
-      )
-    }
-
     const searchTerm = `%${query}%`
 
     // Search by bag ID if the query is a number
     if (!isNaN(Number(query))) {
       const bagId = Number(query)
 
-      // Use tagged template literal syntax - now filtering for active=true
+      // Use tagged template literal syntax
       const redBloodResults = await dbClient`
         SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
-               rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
+               rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone,
+               h.hospital_id, rb.active
         FROM redblood_inventory rb
         JOIN hospital h ON rb.hospital_id = h.hospital_id
-        WHERE rb.bag_id = ${bagId} AND rb.active = true
+        WHERE rb.bag_id = ${bagId} ${showInactive ? sql`` : sql`AND rb.active = true`}
       `
 
-      // Use tagged template literal syntax - now filtering for active=true
+      // Use tagged template literal syntax
       const plasmaResults = await dbClient`
         SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
-               p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+               p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone,
+               h.hospital_id, p.active
         FROM plasma_inventory p
         JOIN hospital h ON p.hospital_id = h.hospital_id
-        WHERE p.bag_id = ${bagId} AND p.active = true
+        WHERE p.bag_id = ${bagId} ${showInactive ? sql`` : sql`AND p.active = true`}
       `
 
-      // Use tagged template literal syntax - now filtering for active=true
+      // Use tagged template literal syntax
       const plateletsResults = await dbClient`
         SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
-               p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+               p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone,
+               h.hospital_id, p.active
         FROM platelets_inventory p
         JOIN hospital h ON p.hospital_id = h.hospital_id
-        WHERE p.bag_id = ${bagId} AND p.active = true
+        WHERE p.bag_id = ${bagId} ${showInactive ? sql`` : sql`AND p.active = true`}
       `
 
       return [...redBloodResults, ...plasmaResults, ...plateletsResults]
     }
 
     // Search by donor name
-    // Use tagged template literal syntax - now filtering for active=true
+    // Use tagged template literal syntax
     const redBloodResults = await dbClient`
       SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
-             rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
+             rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone,
+             h.hospital_id, rb.active
       FROM redblood_inventory rb
       JOIN hospital h ON rb.hospital_id = h.hospital_id
-      WHERE rb.donor_name ILIKE ${searchTerm} AND rb.active = true
+      WHERE rb.donor_name ILIKE ${searchTerm} ${showInactive ? sql`` : sql`AND rb.active = true`}
     `
 
-    // Use tagged template literal syntax - now filtering for active=true
+    // Use tagged template literal syntax
     const plasmaResults = await dbClient`
       SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
-             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone,
+             h.hospital_id, p.active
       FROM plasma_inventory p
       JOIN hospital h ON p.hospital_id = h.hospital_id
-      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
+      WHERE p.donor_name ILIKE ${searchTerm} ${showInactive ? sql`` : sql`AND p.active = true`}
     `
 
-    // Use tagged template literal syntax - now filtering for active=true
+    // Use tagged template literal syntax
     const plateletsResults = await dbClient`
       SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
-             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone,
+             h.hospital_id, p.active
       FROM platelets_inventory p
       JOIN hospital h ON p.hospital_id = h.hospital_id
-      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
+      WHERE p.donor_name ILIKE ${searchTerm} ${showInactive ? sql`` : sql`AND p.active = true`}
     `
 
     return [...redBloodResults, ...plasmaResults, ...plateletsResults]
   } catch (error) {
-    // Return sample data in case of error
     console.error("Error searching donors:", error)
-    return FALLBACK_DATA.donors
+    throw logError(error, "Search Donors")
   }
 }
 
 // New function to soft-delete a blood inventory entry
 export async function softDeleteBloodEntry(bagId: number, entryType: string, hospitalId: number) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      return { success: true, fallback: true }
-    }
-
     // Verify that the entry belongs to the hospital
     const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
     if (!ownershipCheck.success) {
@@ -1251,25 +998,23 @@ export async function softDeleteBloodEntry(bagId: number, entryType: string, hos
 }
 
 // Helper function to verify entry ownership
-async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId: number) {
+async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId: number, checkActive = true) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      return { success: true, fallback: true }
-    }
-
     let result
     if (entryType === "RedBlood") {
       result = await dbClient`
-        SELECT hospital_id FROM redblood_inventory WHERE bag_id = ${bagId} AND active = true
+        SELECT hospital_id FROM redblood_inventory 
+        WHERE bag_id = ${bagId} ${checkActive ? sql`AND active = true` : sql``}
       `
     } else if (entryType === "Plasma") {
       result = await dbClient`
-        SELECT hospital_id FROM plasma_inventory WHERE bag_id = ${bagId} AND active = true
+        SELECT hospital_id FROM plasma_inventory 
+        WHERE bag_id = ${bagId} ${checkActive ? sql`AND active = true` : sql``}
       `
     } else if (entryType === "Platelets") {
       result = await dbClient`
-        SELECT hospital_id FROM platelets_inventory WHERE bag_id = ${bagId} AND active = true
+        SELECT hospital_id FROM platelets_inventory 
+        WHERE bag_id = ${bagId} ${checkActive ? sql`AND active = true` : sql``}
       `
     } else {
       return {
@@ -1307,17 +1052,6 @@ async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId
 // Helper function to get plasma inventory for a hospital
 export async function getPlasmaInventory(hospitalId: number) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      // Return sample data in fallback mode
-      return [
-        { blood_type: "A", count: 12, total_amount: 3600 },
-        { blood_type: "B", count: 10, total_amount: 3000 },
-        { blood_type: "AB", count: 5, total_amount: 1500 },
-        { blood_type: "O", count: 15, total_amount: 4500 },
-      ]
-    }
-
     const cacheKey = `plasma:${hospitalId}`
     const cached = queryCache.get<any[]>(cacheKey)
 
@@ -1344,35 +1078,14 @@ export async function getPlasmaInventory(hospitalId: number) {
     queryCache.set(cacheKey, processedData)
     return processedData
   } catch (error) {
-    // Return sample data in case of error
     console.error("Error fetching plasma inventory:", error)
-    return [
-      { blood_type: "A", count: 12, total_amount: 3600 },
-      { blood_type: "B", count: 10, total_amount: 3000 },
-      { blood_type: "AB", count: 5, total_amount: 1500 },
-      { blood_type: "O", count: 15, total_amount: 4500 },
-    ]
+    throw logError(error, "Get Plasma Inventory")
   }
 }
 
 // Helper function to get platelets inventory for a hospital
 export async function getPlateletsInventory(hospitalId: number) {
   try {
-    // Check if we're in fallback mode
-    if (IS_FALLBACK_MODE) {
-      // Return sample data in fallback mode
-      return [
-        { blood_type: "A", rh: "+", count: 8, total_amount: 2400 },
-        { blood_type: "A", rh: "-", count: 3, total_amount: 900 },
-        { blood_type: "B", rh: "+", count: 7, total_amount: 2100 },
-        { blood_type: "B", rh: "-", count: 2, total_amount: 600 },
-        { blood_type: "AB", rh: "+", count: 4, total_amount: 1200 },
-        { blood_type: "AB", rh: "-", count: 1, total_amount: 300 },
-        { blood_type: "O", rh: "+", count: 10, total_amount: 3000 },
-        { blood_type: "O", rh: "-", count: 4, total_amount: 1200 },
-      ]
-    }
-
     const cacheKey = `platelets:${hospitalId}`
     const cached = queryCache.get<any[]>(cacheKey)
 
@@ -1399,18 +1112,8 @@ export async function getPlateletsInventory(hospitalId: number) {
     queryCache.set(cacheKey, processedData)
     return processedData
   } catch (error) {
-    // Return sample data in case of error
     console.error("Error fetching platelets inventory:", error)
-    return [
-      { blood_type: "A", rh: "+", count: 8, total_amount: 2400 },
-      { blood_type: "A", rh: "-", count: 3, total_amount: 900 },
-      { blood_type: "B", rh: "+", count: 7, total_amount: 2100 },
-      { blood_type: "B", rh: "-", count: 2, total_amount: 600 },
-      { blood_type: "AB", rh: "+", count: 4, total_amount: 1200 },
-      { blood_type: "AB", rh: "-", count: 1, total_amount: 300 },
-      { blood_type: "O", rh: "+", count: 10, total_amount: 3000 },
-      { blood_type: "O", rh: "-", count: 4, total_amount: 1200 },
-    ]
+    throw logError(error, "Get Platelets Inventory")
   }
 }
 

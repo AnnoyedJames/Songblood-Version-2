@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,10 @@ interface BloodEntry {
   amount: number
   expiration_date: string
   type: "RedBlood" | "Plasma" | "Platelets"
+  hospital_id?: number
+  hospital_name?: string
+  hospital_contact_phone?: string
+  active?: boolean
 }
 
 interface EditEntryDialogProps {
@@ -40,9 +44,9 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
   const [formData, setFormData] = useState<BloodEntry | null>(entry)
 
   // Update form data when entry changes
-  useState(() => {
+  useEffect(() => {
     setFormData(entry)
-  })
+  }, [entry])
 
   if (!entry || !formData) return null
 

@@ -1,6 +1,5 @@
 // Database configuration file to centralize database settings
 import { neonConfig } from "@neondatabase/serverless"
-import { getDatabaseUrl, shouldUseFallbackMode } from "./env-utils"
 
 // Database configuration constants
 export const DB_CONFIG = {
@@ -13,21 +12,10 @@ export const DB_CONFIG = {
 
 // Database configuration
 export const dbConfig = {
-  // Use the safe environment variable getter
-  connectionString: getDatabaseUrl(),
-
-  // Default to fallback mode in development/preview environments
-  useFallback: shouldUseFallbackMode(),
-
   // Connection settings
   connectionTimeout: 15000, // 15 seconds
   maxRetries: 3,
   retryDelay: 1000, // 1 second
-}
-
-// Export a function to check if we're using fallback mode
-export function isUsingFallbackMode(): boolean {
-  return dbConfig.useFallback
 }
 
 // Configure Neon with optimal settings

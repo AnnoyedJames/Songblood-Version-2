@@ -40,3 +40,7 @@ async function testDatabaseConnectionWithoutCache(): Promise<{ success: boolean;
     }
   }
 }
+
+export async function testDatabaseConnection(): Promise<{ success: boolean; message: string }> {
+  return testDatabaseConnectionWithoutCache()
+}

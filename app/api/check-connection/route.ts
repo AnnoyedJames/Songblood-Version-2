@@ -1,33 +1,21 @@
 import { NextResponse } from "next/server"
-import { testDatabaseConnection } from "@/lib/db-test"
-import { isUsingFallbackMode } from "@/lib/db-config"
+import { testDatabaseConnection } from "@/lib/db"
 
 export async function GET() {
-  // Check if we're in fallback mode
-  if (isUsingFallbackMode()) {
-    return NextResponse.json({
-      success: true,
-      fallbackMode: true,
-      message: "Using development/preview mode with sample data",
-    })
-  }
-
   try {
     const result = await testDatabaseConnection()
 
     return NextResponse.json({
-      success: result.success,
-      fallbackMode: false,
-      message: result.message,
+      connected: result.connected,
+      error: result.error || null,
     })
-  } catch (error: any) {
-    console.error("Error in check-connection API:", error)
+  } catch (error) {
+    console.error("Error in check-connection API route:", error)
 
     return NextResponse.json(
       {
-        success: false,
-        fallbackMode: false,
-        message: `Connection check failed: ${error.message || "Unknown error"}`,
+        connected: false,
+        error: error instanceof Error ? error.message : "Unknown error checking database connection",
       },
       { status: 500 },
     )
