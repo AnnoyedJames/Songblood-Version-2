@@ -3,6 +3,7 @@
  */
 
 import { AppError, ErrorType } from "./error-handling"
+import { isUsingFallbackMode } from "./db-config"
 
 /**
  * Configuration for retry operations
@@ -105,4 +106,112 @@ export function isTimeoutError(error: unknown): boolean {
   }
 
   return false
+}
+
+/**
+ * Utility for retrying operations with exponential backoff
+ */
+
+// Options for retry with backoff
+export interface RetryOptions {
+  maxRetries: number
+  initialDelayMs: number
+  maxDelayMs: number
+  backoffFactor: number
+  onRetry?: (attempt: number, error: Error) => void
+}
+
+// Default retry options
+const DEFAULT_RETRY_OPTIONS: RetryOptions = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffFactor: 2,
+}
+
+/**
+ * Retry a function with exponential backoff
+ */
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  options: {
+    maxRetries?: number
+    initialDelay?: number
+    maxDelay?: number
+    factor?: number
+    onRetry?: (attempt: number, error: Error) => void
+  } = {},
+): Promise<T> {
+  // Skip retries if we're in fallback mode
+  if (isUsingFallbackMode()) {
+    try {
+      return await fn()
+    } catch (error) {
+      console.warn("Operation failed in fallback mode:", error)
+      throw error
+    }
+  }
+
+  const { maxRetries = 3, initialDelay = 1000, maxDelay = 10000, factor = 2, onRetry = () => {} } = options
+
+  let attempt = 0
+  let delay = initialDelay
+
+  while (true) {
+    try {
+      return await fn()
+    } catch (error: any) {
+      attempt++
+
+      if (attempt >= maxRetries) {
+        console.error(`Failed after ${attempt} attempts:`, error)
+        throw error
+      }
+
+      // Log the retry attempt
+      console.warn(`Attempt ${attempt} failed, retrying in ${delay}ms:`, error)
+
+      // Call the onRetry callback
+      onRetry(attempt, error)
+
+      // Wait for the delay
+      await new Promise((resolve) => setTimeout(resolve, delay))
+
+      // Increase the delay for the next attempt, but don't exceed maxDelay
+      delay = Math.min(delay * factor, maxDelay)
+    }
+  }
+}
+
+/**
+ * Retries a function with a simple delay (no exponential backoff)
+ * @param fn The function to retry
+ * @param maxRetries Maximum number of retries
+ * @param delayMs Delay between retries in milliseconds
+ * @returns The result of the function
+ * @throws The last error if all retries fail
+ */
+export async function retryWithDelay<T>(fn: () => Promise<T>, maxRetries = 3, delayMs = 1000): Promise<T> {
+  let lastError: Error | null = null
+  let attempt = 0
+
+  while (attempt <= maxRetries) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      attempt++
+
+      // If we've reached the max retries, throw the last error
+      if (attempt > maxRetries) {
+        break
+      }
+
+      // Wait before retrying
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+
+  // If we get here, all retries failed
+  throw lastError || new Error("All retries failed")
 }

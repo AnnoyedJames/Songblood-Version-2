@@ -4,6 +4,74 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
+// Session timeout duration in milliseconds (30 minutes)
+export const SESSION_TIMEOUT = 30 * 60 * 1000
+
+// Warning before timeout in milliseconds (5 minutes before)
+export const WARNING_BEFORE_TIMEOUT = 5 * 60 * 1000
+
+// Function to show a warning toast before session timeout
+export function showSessionTimeoutWarning(onExtend: () => void) {
+  useToast().toast({
+    title: "Session Expiring Soon",
+    description: "Your session will expire in 5 minutes due to inactivity.",
+    duration: 0, // Don't auto-dismiss
+    action: {
+      label: "Extend Session",
+      onClick: onExtend,
+    },
+  })
+}
+
+// Function to show session expired notification
+export function showSessionExpiredNotification(onLogin: () => void) {
+  useToast().toast({
+    title: "Session Expired",
+    description: "Your session has expired due to inactivity. Please log in again.",
+    duration: 0, // Don't auto-dismiss
+    variant: "destructive",
+    action: {
+      label: "Log In",
+      onClick: onLogin,
+    },
+  })
+}
+
+// Function to show confirmation dialog for session timeout
+export function showSessionTimeoutConfirmation(
+  onStayLoggedIn: () => void,
+  onLogout: () => void,
+  isOpen: boolean,
+  setIsOpen: (open: boolean) => void,
+) {
+  return (
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Session Timeout</AlertDialogTitle>
+          <AlertDialogDescription>
+            Your session is about to expire due to inactivity. Would you like to stay logged in?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => onLogout()}>Logout</AlertDialogCancel>
+          <AlertDialogAction onClick={() => onStayLoggedIn()}>Stay Logged In</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
 type SessionTimeoutOptions = {
   timeoutMinutes?: number

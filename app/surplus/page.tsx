@@ -4,13 +4,11 @@ import {
   getHospitalSurplus,
   getHospitalsNeedingSurplus,
   getSurplusSummary,
-  getSurplusTransferHistory,
 } from "@/lib/surplus-utils"
 import Header from "@/components/header"
 import EnhancedSurplusAlerts from "@/components/enhanced-surplus-alerts"
 import SurplusSummaryCard from "@/components/surplus-summary-card"
 import HospitalsNeedingSurplus from "@/components/hospitals-needing-surplus"
-import SurplusTransferHistory from "@/components/surplus-transfer-history"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
@@ -26,13 +24,12 @@ export default async function SurplusPage() {
     const { hospitalId } = session
 
     // Parallel data fetching with error handling for each service
-    const [alertsResult, hospitalSurplusResult, hospitalsNeedingResult, surplusSummaryResult, transferHistoryResult] =
+    const [alertsResult, hospitalSurplusResult, hospitalsNeedingResult, surplusSummaryResult] =
       await Promise.allSettled([
         getEnhancedSurplusAlerts(hospitalId),
         getHospitalSurplus(hospitalId),
         getHospitalsNeedingSurplus(hospitalId),
         getSurplusSummary(hospitalId),
-        getSurplusTransferHistory(hospitalId),
       ])
 
     // Extract values or provide defaults for each result
@@ -47,17 +44,14 @@ export default async function SurplusPage() {
             plasma: { surplus: 0, optimal: 0, low: 0, critical: 0 },
             platelets: { surplus: 0, optimal: 0, low: 0, critical: 0 },
           }
-    const transferHistory = transferHistoryResult.status === "fulfilled" ? transferHistoryResult.value : []
 
     // Log any errors for debugging
-    ;[alertsResult, hospitalSurplusResult, hospitalsNeedingResult, surplusSummaryResult, transferHistoryResult].forEach(
-      (result, index) => {
-        if (result.status === "rejected") {
-          const services = ["alerts", "hospitalSurplus", "hospitalsNeeding", "surplusSummary", "transferHistory"]
-          console.error(`Error fetching ${services[index]}:`, result.reason)
-        }
-      },
-    )
+    ;[alertsResult, hospitalSurplusResult, hospitalsNeedingResult, surplusSummaryResult].forEach((result, index) => {
+      if (result.status === "rejected") {
+        const services = ["alerts", "hospitalSurplus", "hospitalsNeeding", "surplusSummary"]
+        console.error(`Error fetching ${services[index]}:`, result.reason)
+      }
+    })
 
     return (
       <div className="min-h-screen flex flex-col">
@@ -100,18 +94,6 @@ export default async function SurplusPage() {
                 initialHospitals={hospitalsNeeding}
                 hospitalId={hospitalId}
                 refreshInterval={30000}
-              />
-            </Suspense>
-          </div>
-
-          {/* Bottom section: Transfer history */}
-          <div className="mb-8">
-            <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
-              <SurplusTransferHistory
-                initialHistory={transferHistory}
-                hospitalId={hospitalId}
-                refreshInterval={30000}
-                limit={10}
               />
             </Suspense>
           </div>

@@ -4,21 +4,10 @@ import { useEffect, useState } from "react"
 import { formatBloodType, getBloodTypeColor } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, ArrowRightLeft, ExternalLink } from "lucide-react"
+import { AlertCircle, ExternalLink, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import type { SurplusItem } from "@/lib/surplus-utils"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { toast } from "@/components/ui/use-toast"
 
 type HospitalsNeedingSurplusProps = {
   initialHospitals: SurplusItem[]
@@ -36,11 +25,6 @@ export default function HospitalsNeedingSurplus({
   const [hospitals, setHospitals] = useState<SurplusItem[]>(initialHospitals)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedHospital, setSelectedHospital] = useState<SurplusItem | null>(null)
-  const [transferAmount, setTransferAmount] = useState<number>(0)
-  const [transferUnits, setTransferUnits] = useState<number>(0)
-  const [isTransferring, setIsTransferring] = useState(false)
-  const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
     const fetchHospitals = async () => {
@@ -69,75 +53,6 @@ export default function HospitalsNeedingSurplus({
     // Clean up interval on component unmount
     return () => clearInterval(intervalId)
   }, [hospitalId, refreshInterval])
-
-  const handleTransferClick = (hospital: SurplusItem) => {
-    setSelectedHospital(hospital)
-    // Set default values based on the hospital's needs
-    const suggestedUnits = Math.min(5, hospital.yourCount - hospital.count)
-    setTransferUnits(suggestedUnits > 0 ? suggestedUnits : 1)
-    setTransferAmount(suggestedUnits * 450) // Assuming 450ml per unit
-    setDialogOpen(true)
-  }
-
-  const handleTransferSubmit = async () => {
-    if (!selectedHospital) return
-
-    try {
-      setIsTransferring(true)
-
-      const response = await fetch("/api/surplus/transfer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fromHospitalId: hospitalId,
-          toHospitalId: selectedHospital.hospitalId,
-          type: selectedHospital.type,
-          bloodType: selectedHospital.bloodType,
-          rh: selectedHospital.rh,
-          amount: transferAmount,
-          units: transferUnits,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to record transfer")
-      }
-
-      // Success
-      toast({
-        title: "Transfer recorded successfully",
-        description: `${transferUnits} units of ${formatBloodType(selectedHospital.bloodType, selectedHospital.rh)} ${selectedHospital.type} transferred to ${selectedHospital.hospitalName}`,
-      })
-
-      // Close dialog and refresh data
-      setDialogOpen(false)
-
-      // Remove the transferred hospital from the list or update its count
-      setHospitals((prevHospitals) =>
-        prevHospitals.filter(
-          (h) =>
-            !(
-              h.hospitalId === selectedHospital.hospitalId &&
-              h.type === selectedHospital.type &&
-              h.bloodType === selectedHospital.bloodType &&
-              h.rh === selectedHospital.rh
-            ),
-        ),
-      )
-    } catch (err) {
-      console.error("Error recording transfer:", err)
-      toast({
-        title: "Transfer failed",
-        description: err instanceof Error ? err.message : "An error occurred while recording the transfer",
-        variant: "destructive",
-      })
-    } finally {
-      setIsTransferring(false)
-    }
-  }
 
   if (hospitals.length === 0) {
     return (
@@ -193,10 +108,15 @@ export default function HospitalsNeedingSurplus({
                   You have <span className="font-medium">{hospital.yourCount} units</span> in surplus
                 </div>
                 <div className="flex gap-2 mt-2">
-                  <Button variant="outline" size="sm" className="h-7" onClick={() => handleTransferClick(hospital)}>
-                    <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-                    Transfer
-                  </Button>
+                  <a
+                    href={`mailto:?subject=Blood Component Information&body=Hello,%0D%0A%0D%0AWe noticed you have a need for ${hospital.type} ${formatBloodType(hospital.bloodType, hospital.rh)}.%0D%0A%0D%0APlease contact us for more information.%0D%0A%0D%0AThank you.`}
+                    className="inline-flex items-center"
+                  >
+                    <Button variant="outline" size="sm" className="h-7">
+                      <Mail className="h-3.5 w-3.5 mr-1" />
+                      Contact
+                    </Button>
+                  </a>
 
                   <Link
                     href={`/surplus/details?hospital=${hospital.hospitalId}&type=${hospital.type}&bloodType=${hospital.bloodType}&rh=${hospital.rh}`}
@@ -211,79 +131,6 @@ export default function HospitalsNeedingSurplus({
             </div>
           ))}
         </div>
-
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Transfer Blood Components</DialogTitle>
-              <DialogDescription>Record a transfer of blood components to another hospital.</DialogDescription>
-            </DialogHeader>
-
-            {selectedHospital && (
-              <div className="space-y-4 py-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="recipient">Recipient Hospital</Label>
-                    <div id="recipient" className="font-medium mt-1">
-                      {selectedHospital.hospitalName}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="bloodType">Blood Type</Label>
-                    <div id="bloodType" className="font-medium mt-1">
-                      <Badge className={getBloodTypeColor(selectedHospital.bloodType, selectedHospital.rh)}>
-                        {formatBloodType(selectedHospital.bloodType, selectedHospital.rh)}
-                      </Badge>{" "}
-                      {selectedHospital.type}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="units">Units to Transfer</Label>
-                    <Input
-                      id="units"
-                      type="number"
-                      min="1"
-                      max={selectedHospital.yourCount}
-                      value={transferUnits}
-                      onChange={(e) => {
-                        const units = Number.parseInt(e.target.value)
-                        setTransferUnits(units)
-                        setTransferAmount(units * 450) // Assuming 450ml per unit
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="amount">Amount (ml)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      min="100"
-                      value={transferAmount}
-                      onChange={(e) => setTransferAmount(Number.parseInt(e.target.value))}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleTransferSubmit}
-                disabled={isTransferring || transferUnits <= 0 || transferAmount <= 0}
-              >
-                {isTransferring ? "Recording..." : "Record Transfer"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </CardContent>
     </Card>
   )

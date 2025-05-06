@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { formatBloodType, getBloodTypeColor } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle, ArrowRightLeft, ExternalLink } from "lucide-react"
+import { AlertTriangle, ExternalLink, PhoneCall } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
@@ -111,12 +111,12 @@ export default function EnhancedSurplusAlerts({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="outline" size="sm" className="h-7">
-                          <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-                          Request Transfer
+                          <PhoneCall className="h-3.5 w-3.5 mr-1" />
+                          Contact Hospital
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Request a transfer from this hospital</p>
+                        <p>Contact this hospital for information</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

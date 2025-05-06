@@ -29,7 +29,7 @@ export default async function ManageSurplusPage() {
 
         <main className="flex-1 container py-6 px-4 md:py-8">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Manage Surplus Inventory</h1>
+            <h1 className="text-2xl font-bold">Surplus Inventory</h1>
             <Link href="/surplus" className="text-sm text-primary hover:underline flex items-center">
               <ChevronLeft className="h-4 w-4 mr-1" />
               <span>Back to Surplus Management</span>
@@ -91,9 +91,6 @@ export default async function ManageSurplusPage() {
                                   Details
                                 </Button>
                               </Link>
-                              <Link href="/surplus">
-                                <Button size="sm">Find Hospitals</Button>
-                              </Link>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -112,9 +109,9 @@ export default async function ManageSurplusPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-          <h1 className="text-xl font-bold mb-4">Error Loading Surplus Management</h1>
+          <h1 className="text-xl font-bold mb-4">Error Loading Surplus Inventory</h1>
           <p className="text-gray-600 mb-6">
-            There was an error loading the surplus management page. Please try again later or contact support.
+            There was an error loading the surplus inventory page. Please try again later or contact support.
           </p>
           <Link
             href="/surplus"

@@ -95,7 +95,15 @@ export default function Error({
           <p className="mt-2 text-gray-600">We apologize for the inconvenience</p>
         </div>
 
-        <Alert variant={isDatabaseError ? "warning" : isNavigationError ? "default" : "destructive"} className="mb-6">
+        <Alert
+          className={
+            isDatabaseError
+              ? "bg-amber-50 border-amber-200"
+              : isNavigationError
+                ? "bg-blue-50 border-blue-200"
+                : "bg-red-50 border-red-200"
+          }
+        >
           <AlertTitle>
             {isDatabaseError ? "Database Connection Error" : isNavigationError ? "Navigation Error" : "Error"}
           </AlertTitle>
@@ -108,7 +116,7 @@ export default function Error({
           </AlertDescription>
         </Alert>
 
-        <div className="flex justify-center gap-4">
+        <div className="flex justify-center gap-4 mt-6">
           <Button onClick={handleReset} className="gap-2">
             <RefreshCw className="h-4 w-4" />
             Try again

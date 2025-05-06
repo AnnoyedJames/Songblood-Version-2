@@ -1,6 +1,5 @@
 import { dbClient } from "./db"
 import { queryCache } from "./cache"
-import { logError } from "./error-handling"
 
 // Threshold constants for surplus determination (in ml)
 export const SURPLUS_THRESHOLDS = {
@@ -172,7 +171,8 @@ export async function getEnhancedSurplusAlerts(hospitalId: number): Promise<Surp
     queryCache.set(cacheKey, alerts, 5 * 60) // Cache for 5 minutes
     return alerts
   } catch (error) {
-    throw logError(error, "Get Enhanced Surplus Alerts")
+    console.error("Error in getEnhancedSurplusAlerts:", error)
+    return [] // Return empty array instead of throwing
   }
 }
 
@@ -276,7 +276,8 @@ export async function getHospitalSurplus(hospitalId: number): Promise<HospitalSu
     queryCache.set(cacheKey, result, 5 * 60) // Cache for 5 minutes
     return result
   } catch (error) {
-    throw logError(error, "Get Hospital Surplus")
+    console.error("Error in getHospitalSurplus:", error)
+    return [] // Return empty array instead of throwing
   }
 }
 
@@ -375,7 +376,8 @@ export async function getHospitalsNeedingSurplus(hospitalId: number): Promise<Su
     queryCache.set(cacheKey, results, 5 * 60) // Cache for 5 minutes
     return results
   } catch (error) {
-    throw logError(error, "Get Hospitals Needing Surplus")
+    console.error("Error in getHospitalsNeedingSurplus:", error)
+    return [] // Return empty array instead of throwing
   }
 }
 
@@ -456,107 +458,12 @@ export async function getSurplusSummary(hospitalId: number): Promise<SurplusSumm
     queryCache.set(cacheKey, summary, 5 * 60) // Cache for 5 minutes
     return summary
   } catch (error) {
-    throw logError(error, "Get Surplus Summary")
-  }
-}
-
-// Record a surplus transfer
-export async function recordSurplusTransfer(
-  fromHospitalId: number,
-  toHospitalId: number,
-  type: string,
-  bloodType: string,
-  rh: string,
-  amount: number,
-  units: number,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Insert transfer record
-    await dbClient`
-      INSERT INTO surplus_transfers (
-        from_hospital_id,
-        to_hospital_id,
-        type,
-        blood_type,
-        rh,
-        amount,
-        units,
-        transfer_date
-      ) VALUES (
-        ${fromHospitalId},
-        ${toHospitalId},
-        ${type},
-        ${bloodType},
-        ${rh},
-        ${amount},
-        ${units},
-        CURRENT_TIMESTAMP
-      )
-    `
-
-    // Invalidate relevant caches
-    queryCache.invalidate(`surplus-alerts:${fromHospitalId}`)
-    queryCache.invalidate(`surplus-alerts:${toHospitalId}`)
-    queryCache.invalidate(`hospital-surplus:${fromHospitalId}`)
-    queryCache.invalidate(`hospital-surplus:${toHospitalId}`)
-    queryCache.invalidate(`hospitals-needing-surplus:${fromHospitalId}`)
-    queryCache.invalidate(`surplus-summary:${fromHospitalId}`)
-    queryCache.invalidate(`surplus-summary:${toHospitalId}`)
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error recording surplus transfer:", error)
-    const appError = logError(error, "Record Surplus Transfer")
+    console.error("Error in getSurplusSummary:", error)
+    // Return default values instead of throwing
     return {
-      success: false,
-      error: appError.message,
+      redBlood: { surplus: 0, optimal: 0, low: 0, critical: 0 },
+      plasma: { surplus: 0, optimal: 0, low: 0, critical: 0 },
+      platelets: { surplus: 0, optimal: 0, low: 0, critical: 0 },
     }
-  }
-}
-
-// Get surplus transfer history
-export async function getSurplusTransferHistory(hospitalId: number): Promise<any[]> {
-  try {
-    const cacheKey = `surplus-transfers:${hospitalId}`
-    const cached = queryCache.get<any[]>(cacheKey)
-
-    if (cached) {
-      return cached
-    }
-
-    try {
-      // Get transfers where this hospital is either sender or receiver
-      const transfers = await dbClient`
-        SELECT 
-          st.*,
-          h1.hospital_name as from_hospital_name,
-          h2.hospital_name as to_hospital_name
-        FROM surplus_transfers st
-        JOIN hospital h1 ON st.from_hospital_id = h1.hospital_id
-        JOIN hospital h2 ON st.to_hospital_id = h2.hospital_id
-        WHERE st.from_hospital_id = ${hospitalId} OR st.to_hospital_id = ${hospitalId}
-        ORDER BY st.transfer_date DESC
-        LIMIT 100
-      `
-
-      queryCache.set(cacheKey, transfers, 5 * 60) // Cache for 5 minutes
-      return transfers
-    } catch (dbError: any) {
-      // Check if the error is about the missing table
-      if (
-        dbError.message &&
-        (dbError.message.includes('relation "surplus_transfers" does not exist') ||
-          dbError.message.includes("table surplus_transfers does not exist"))
-      ) {
-        console.warn("The surplus_transfers table does not exist yet. Returning empty array.")
-        return []
-      }
-      // Re-throw other errors
-      throw dbError
-    }
-  } catch (error) {
-    console.error("Error in getSurplusTransferHistory:", error)
-    // Return empty array instead of throwing
-    return []
   }
 }

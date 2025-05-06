@@ -1,26 +1,35 @@
 import { NextResponse } from "next/server"
-import { testDatabaseConnection, getConnectionErrorMessage } from "@/lib/db"
-
-// Force dynamic rendering for API routes
-export const dynamic = "force-dynamic"
+import { testDatabaseConnection } from "@/lib/db-test"
+import { isUsingFallbackMode } from "@/lib/db-config"
 
 export async function GET() {
+  // Check if we're in fallback mode
+  if (isUsingFallbackMode()) {
+    return NextResponse.json({
+      success: true,
+      fallbackMode: true,
+      message: "Using development/preview mode with sample data",
+    })
+  }
+
   try {
-    // Test the database connection
     const result = await testDatabaseConnection()
 
     return NextResponse.json({
-      connected: result.connected,
-      error: result.error || getConnectionErrorMessage() || undefined,
-      timestamp: new Date().toISOString(),
+      success: result.success,
+      fallbackMode: false,
+      message: result.message,
     })
-  } catch (error) {
-    console.error("Database status check error:", error)
+  } catch (error: any) {
+    console.error("Error in check-connection API:", error)
 
-    return NextResponse.json({
-      connected: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      timestamp: new Date().toISOString(),
-    })
+    return NextResponse.json(
+      {
+        success: false,
+        fallbackMode: false,
+        message: `Connection check failed: ${error.message || "Unknown error"}`,
+      },
+      { status: 500 },
+    )
   }
 }

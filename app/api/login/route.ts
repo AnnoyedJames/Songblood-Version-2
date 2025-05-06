@@ -8,7 +8,23 @@ export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
   try {
-    const { username, password } = await request.json()
+    // Parse the request body
+    let username, password
+    try {
+      const body = await request.json()
+      username = body.username
+      password = body.password
+    } catch (error) {
+      // Handle JSON parsing errors in the request
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid request format",
+          type: ErrorType.VALIDATION,
+        },
+        { status: 400 },
+      )
+    }
 
     if (!username || !password) {
       return NextResponse.json(
@@ -38,28 +54,31 @@ export async function POST(request: Request) {
         )
       }
 
+      // Handle other specific error types
+      if (error instanceof AppError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: error.message,
+            type: error.type,
+          },
+          { status: error.type === ErrorType.AUTHENTICATION ? 401 : 500 },
+        )
+      }
+
+      // For any other errors, return a generic error response
       throw error
     }
   } catch (error) {
-    // Handle different error types
-    if (error instanceof AppError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          type: error.type,
-        },
-        { status: error.type === ErrorType.AUTHENTICATION ? 401 : 500 },
-      )
-    }
-
     // Handle unexpected errors
+    console.error("Unhandled error in login API:", error)
     const appError = logError(error, "Login API")
     return NextResponse.json(
       {
         success: false,
-        error: appError.message,
-        type: appError.type,
+        error: "Internal server error",
+        type: ErrorType.SERVER,
+        message: appError.message,
       },
       { status: 500 },
     )

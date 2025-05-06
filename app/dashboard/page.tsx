@@ -39,11 +39,8 @@ export default async function DashboardPage() {
 
     try {
       // Fetch hospital data
-      const hospitalPromise = getHospitalById(hospitalId)
-
-      // Parallel data fetching for better performance
       const [hospital, redBlood, plasma, platelets, alerts] = await Promise.all([
-        hospitalPromise,
+        getHospitalById(hospitalId),
         getBloodInventory(hospitalId),
         getPlasmaInventory(hospitalId),
         getPlateletsInventory(hospitalId),

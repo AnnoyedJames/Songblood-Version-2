@@ -31,17 +31,35 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
         body: JSON.stringify({ username, password }),
       })
 
-      const data = await response.json()
-
+      // Check if the response is ok before trying to parse JSON
       if (!response.ok) {
-        if (data.type === "DATABASE_CONNECTION") {
+        // Try to parse as JSON first
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch (jsonError) {
+          // If JSON parsing fails, use the status text or a generic message
+          const errorText = await response.text()
+          console.error("Non-JSON error response:", errorText)
+
+          setError(`Server error: ${response.status} ${response.statusText || "Unknown error"}`)
+          toast({
+            title: "Login Error",
+            description: "The server returned an invalid response. Please try again later.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        // Handle JSON error responses
+        if (errorData.type === "DATABASE_CONNECTION") {
           setError("Database connection error. Please try again later.")
           toast({
             title: "Connection Error",
             description: "Unable to connect to the database. Please try again later.",
             variant: "destructive",
           })
-        } else if (data.type === "AUTHENTICATION") {
+        } else if (errorData.type === "AUTHENTICATION") {
           setError("Invalid username or password")
           toast({
             title: "Authentication Failed",
@@ -49,13 +67,28 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
             variant: "destructive",
           })
         } else {
-          setError(data.error || "An error occurred during login")
+          setError(errorData.error || "An error occurred during login")
           toast({
             title: "Login Error",
-            description: data.error || "An error occurred during login. Please try again.",
+            description: errorData.error || "An error occurred during login. Please try again.",
             variant: "destructive",
           })
         }
+        return
+      }
+
+      // For successful responses, parse JSON
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        console.error("Error parsing successful response:", jsonError)
+        setError("Received an invalid response from the server")
+        toast({
+          title: "Login Error",
+          description: "The server returned an invalid response. Please try again later.",
+          variant: "destructive",
+        })
         return
       }
 

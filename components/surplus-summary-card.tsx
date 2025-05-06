@@ -138,7 +138,7 @@ export default function SurplusSummaryCard({
           <div className="pt-2">
             <Link href="/surplus/manage" className="text-sm text-primary hover:underline flex items-center">
               <Droplets className="h-3.5 w-3.5 mr-1" />
-              Manage surplus inventory
+              View surplus inventory
             </Link>
           </div>
         )}

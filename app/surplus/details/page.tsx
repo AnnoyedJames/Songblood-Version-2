@@ -117,33 +117,20 @@ export default async function SurplusDetailsPage({
                   </div>
 
                   <div className="p-4 border rounded-lg">
-                    <h3 className="font-medium mb-2">Actions</h3>
+                    <h3 className="font-medium mb-2">Contact Options</h3>
                     <div className="flex flex-wrap gap-2">
-                      {currentHospitalId === hospitalId ? (
-                        <>
-                          <Link
-                            href={`/surplus/manage`}
-                            className="bg-primary text-white py-2 px-4 rounded hover:bg-primary/90"
-                          >
-                            Manage Your Surplus
-                          </Link>
-                        </>
-                      ) : (
-                        <>
-                          <Link
-                            href={`/surplus`}
-                            className="bg-primary text-white py-2 px-4 rounded hover:bg-primary/90"
-                          >
-                            Request Transfer
-                          </Link>
-                          <a
-                            href={`mailto:${hospital.hospital_contact_mail}?subject=Blood Component Transfer Request&body=Hello,%0D%0A%0D%0AWe are interested in a transfer of ${type} ${formatBloodType(bloodType, rh)} from your hospital.%0D%0A%0D%0APlease contact us at your earliest convenience.%0D%0A%0D%0AThank you.`}
-                            className="bg-secondary text-secondary-foreground py-2 px-4 rounded hover:bg-secondary/90"
-                          >
-                            Contact via Email
-                          </a>
-                        </>
-                      )}
+                      <a
+                        href={`mailto:${hospital.hospital_contact_mail}?subject=Blood Component Information&body=Hello,%0D%0A%0D%0AI am writing regarding ${type} ${formatBloodType(bloodType, rh)}.%0D%0A%0D%0APlease contact me at your earliest convenience.%0D%0A%0D%0AThank you.`}
+                        className="bg-primary text-white py-2 px-4 rounded hover:bg-primary/90"
+                      >
+                        Contact via Email
+                      </a>
+                      <a
+                        href={`tel:${hospital.hospital_contact_phone}`}
+                        className="bg-secondary text-secondary-foreground py-2 px-4 rounded hover:bg-secondary/90"
+                      >
+                        Call Hospital
+                      </a>
                     </div>
                   </div>
                 </div>
