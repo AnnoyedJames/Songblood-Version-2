@@ -3,77 +3,29 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import {
-  SESSION_TIMEOUT,
-  WARNING_BEFORE_TIMEOUT,
-  showSessionTimeoutWarning,
-  showSessionExpiredNotification,
-  showSessionTimeoutConfirmation,
-} from "@/lib/session-timeout"
+
+// Session timeout in milliseconds (30 minutes)
+const SESSION_TIMEOUT = 30 * 60 * 1000
+
+// Warning before timeout (5 minutes before)
+const WARNING_BEFORE_TIMEOUT = 5 * 60 * 1000
 
 export default function SessionMonitor() {
   const router = useRouter()
   const { toast } = useToast()
   const [lastActivity, setLastActivity] = useState<number>(Date.now())
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [warningToastId, setWarningToastId] = useState<string | null>(null)
+  const [warningShown, setWarningShown] = useState<boolean>(false)
 
   // Function to reset the session timer
   const resetTimer = useCallback(() => {
     setLastActivity(Date.now())
-    // Dismiss any existing warning toast
-    if (warningToastId) {
-      toast.dismiss(warningToastId)
-      setWarningToastId(null)
-    }
-  }, [toast, warningToastId])
+    setWarningShown(false)
+  }, [])
 
   // Function to handle user activity
   const handleActivity = useCallback(() => {
     resetTimer()
   }, [resetTimer])
-
-  // Function to extend the session
-  const extendSession = useCallback(async () => {
-    try {
-      const response = await fetch("/api/check-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        // Session is invalid, redirect to login
-        router.push("/login")
-        return
-      }
-
-      // Session is valid, reset the timer
-      resetTimer()
-
-      // Dismiss any existing warning toast
-      if (warningToastId) {
-        toast.dismiss(warningToastId)
-        setWarningToastId(null)
-      }
-
-      // Show confirmation toast
-      toast({
-        title: "Session Extended",
-        description: "Your session has been extended.",
-        duration: 3000,
-      })
-    } catch (error) {
-      console.error("Error extending session:", error)
-      // Show error toast
-      toast({
-        title: "Error",
-        description: "Failed to extend session. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }, [resetTimer, router, toast, warningToastId])
 
   // Function to handle logout
   const handleLogout = useCallback(async () => {
@@ -111,36 +63,24 @@ export default function SessionMonitor() {
       const timeElapsed = now - lastActivity
 
       // If warning time has elapsed but not timeout yet, show warning
-      if (
-        timeElapsed >= SESSION_TIMEOUT - WARNING_BEFORE_TIMEOUT &&
-        timeElapsed < SESSION_TIMEOUT &&
-        !warningToastId &&
-        !isDialogOpen
-      ) {
+      if (timeElapsed >= SESSION_TIMEOUT - WARNING_BEFORE_TIMEOUT && timeElapsed < SESSION_TIMEOUT && !warningShown) {
         // Show warning toast
-        const id = showSessionTimeoutWarning(extendSession)
-        setWarningToastId(id)
-        setIsDialogOpen(true)
+        toast({
+          title: "Session Expiring Soon",
+          description: "Your session will expire soon due to inactivity. Please continue working to stay logged in.",
+          duration: 10000,
+        })
+        setWarningShown(true)
       }
 
       // If timeout has elapsed, log out
       if (timeElapsed >= SESSION_TIMEOUT) {
-        // Dismiss any existing warning toast
-        if (warningToastId) {
-          toast.dismiss(warningToastId)
-          setWarningToastId(null)
-        }
-
-        // Show session expired notification
-        showSessionExpiredNotification(() => router.push("/login"))
-
-        // Log out
         handleLogout()
       }
     }, 60000) // Check every minute
 
     return () => clearInterval(interval)
-  }, [lastActivity, extendSession, handleLogout, router, toast, warningToastId, isDialogOpen])
+  }, [lastActivity, handleLogout, toast, warningShown])
 
   // Add event listeners for user activity
   useEffect(() => {
@@ -160,5 +100,5 @@ export default function SessionMonitor() {
     }
   }, [handleActivity])
 
-  return <>{showSessionTimeoutConfirmation(extendSession, handleLogout, isDialogOpen, setIsDialogOpen)}</>
+  return null
 }

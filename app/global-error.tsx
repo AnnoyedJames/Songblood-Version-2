@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { AlertTriangle } from "lucide-react"
-import { useEffect, useState } from "react"
 
 export default function GlobalError({
   error,
@@ -12,13 +11,11 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const [redirecting, setRedirecting] = useState(false)
-  const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    // Log the error
-    console.error("Global error:", error)
-  }, [error])
+  // Determine if this is a database error
+  const isDatabaseError =
+    error.message?.includes("database") ||
+    error.message?.includes("connection") ||
+    error.message?.includes("Failed to fetch")
 
   return (
     <html lang="en">
@@ -28,8 +25,14 @@ export default function GlobalError({
             <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="h-8 w-8" />
             </div>
-            <h1 className="text-4xl font-bold mb-4">Something went wrong</h1>
-            <p className="text-gray-600 mb-8">A critical error has occurred. Please try refreshing the page.</p>
+            <h1 className="text-4xl font-bold mb-4">
+              {isDatabaseError ? "Database Connection Error" : "Something went wrong"}
+            </h1>
+            <p className="text-gray-600 mb-8">
+              {isDatabaseError
+                ? "We're unable to connect to the database at this time. Please try again later."
+                : "A critical error has occurred. Please try refreshing the page."}
+            </p>
             <Button onClick={() => reset()}>Try again</Button>
             <Button asChild className="ml-4">
               <Link href="/login">Go to Login</Link>

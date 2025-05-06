@@ -3,12 +3,17 @@ import { getHospitalById } from "@/lib/db"
 import NavLink from "./nav-link"
 import LogoutButton from "./logout-button"
 import DbConnectionStatus from "./db-connection-status"
-import FallbackModeIndicator from "./fallback-mode-indicator"
 import { Droplets } from "lucide-react"
 
 export default async function Header({ hospitalId }: { hospitalId: number }) {
   // Fetch hospital data
-  const hospital = await getHospitalById(hospitalId)
+  let hospital
+  try {
+    hospital = await getHospitalById(hospitalId)
+  } catch (error) {
+    console.error("Error fetching hospital data:", error)
+    hospital = { hospital_name: "Unknown Hospital", hospital_id: hospitalId }
+  }
 
   return (
     <header className="bg-white border-b">
@@ -30,7 +35,6 @@ export default async function Header({ hospitalId }: { hospitalId: number }) {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <FallbackModeIndicator />
           <DbConnectionStatus />
           <div className="hidden md:block text-sm text-right">
             <div className="font-medium">{hospital.hospital_name}</div>

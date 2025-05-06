@@ -1,56 +1,47 @@
-import { requireAuth } from "@/lib/auth"
-import Header from "@/components/header"
+import { Suspense } from "react"
 import DataDiagnostics from "@/components/data-diagnostics"
-import { redirect } from "next/navigation"
-import { AppError, ErrorType } from "@/lib/error-handling"
-import DatabaseError from "@/components/database-error"
+import DbConnectionStatus from "@/components/db-connection-status"
+import RunMigrationButton from "@/components/run-migration-button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-// Force dynamic rendering since we're using cookies
-export const dynamic = "force-dynamic"
+export default function DiagnosticsPage() {
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-6">System Diagnostics</h1>
 
-export default async function DiagnosticsPage() {
-  try {
-    const session = await requireAuth()
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Database Connection</CardTitle>
+            <CardDescription>Current status of database connection</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DbConnectionStatus />
+          </CardContent>
+        </Card>
 
-    // If no session, redirect to login
-    if (!session) {
-      redirect("/login?reason=no-session")
-    }
+        <Card>
+          <CardHeader>
+            <CardTitle>Database Migrations</CardTitle>
+            <CardDescription>Run database migrations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RunMigrationButton />
+          </CardContent>
+        </Card>
 
-    const { hospitalId } = session
-
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header hospitalId={hospitalId} />
-
-        <main className="flex-1 container py-6 px-4 md:py-8">
-          <h1 className="text-2xl font-bold mb-6">Data Diagnostics</h1>
-
-          <div className="max-w-6xl mx-auto">
-            <DataDiagnostics />
-          </div>
-        </main>
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Data Diagnostics</CardTitle>
+            <CardDescription>View and fix data inconsistencies</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Suspense fallback={<div>Loading data diagnostics...</div>}>
+              <DataDiagnostics />
+            </Suspense>
+          </CardContent>
+        </Card>
       </div>
-    )
-  } catch (error) {
-    console.error("Diagnostics page error:", error)
-
-    // If the error is a redirect, let it happen
-    if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
-      throw error
-    }
-
-    // Handle database connection errors
-    if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
-      return <DatabaseError message="Unable to load diagnostics. Database connection failed." />
-    }
-
-    // Return a simple error message for other errors
-    return (
-      <DatabaseError
-        message="There was an error loading your session. Please try logging in again."
-        showHomeLink={false}
-      />
-    )
-  }
+    </div>
+  )
 }

@@ -78,3 +78,9 @@ export function createQueryParams(params: Record<string, any>): string {
     })
     .join("&")
 }
+
+// Add the missing export for fallback mode
+export function isUsingFallbackMode(): boolean {
+  // Since we've removed the fallback mode functionality, this always returns false
+  return false
+}

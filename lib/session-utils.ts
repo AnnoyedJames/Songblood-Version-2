@@ -148,3 +148,17 @@ export function useLogoutListener() {
     }
   }, [router])
 }
+
+// Add the missing export for session data
+export function getSessionData() {
+  try {
+    // Get session data from localStorage
+    const sessionData = localStorage.getItem("sessionData")
+    if (!sessionData) return null
+
+    return JSON.parse(sessionData)
+  } catch (error) {
+    console.error("Error getting session data:", error)
+    return null
+  }
+}

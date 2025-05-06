@@ -31,15 +31,43 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
         body: JSON.stringify({ username, password }),
       })
 
-      // Check if the response is ok before trying to parse JSON
+      // Clone the response to avoid the "body stream already read" error
+      // when we need to read the body in different formats
+      const responseClone = response.clone()
+
+      // Check if the response is ok
       if (!response.ok) {
         // Try to parse as JSON first
-        let errorData
         try {
-          errorData = await response.json()
+          const errorData = await response.json()
+
+          // Handle JSON error responses
+          if (errorData.type === "DATABASE_CONNECTION") {
+            setError("Database connection error. Please try again later.")
+            toast({
+              title: "Connection Error",
+              description: "Unable to connect to the database. Please try again later.",
+              variant: "destructive",
+            })
+          } else if (errorData.type === "AUTHENTICATION") {
+            setError("Invalid username or password")
+            toast({
+              title: "Authentication Failed",
+              description: "Invalid username or password. Please try again.",
+              variant: "destructive",
+            })
+          } else {
+            setError(errorData.error || "An error occurred during login")
+            toast({
+              title: "Login Error",
+              description: errorData.error || "An error occurred during login. Please try again.",
+              variant: "destructive",
+            })
+          }
         } catch (jsonError) {
           // If JSON parsing fails, use the status text or a generic message
-          const errorText = await response.text()
+          // Use the cloned response to read as text
+          const errorText = await responseClone.text()
           console.error("Non-JSON error response:", errorText)
 
           setError(`Server error: ${response.status} ${response.statusText || "Unknown error"}`)
@@ -48,39 +76,31 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
             description: "The server returned an invalid response. Please try again later.",
             variant: "destructive",
           })
-          return
-        }
-
-        // Handle JSON error responses
-        if (errorData.type === "DATABASE_CONNECTION") {
-          setError("Database connection error. Please try again later.")
-          toast({
-            title: "Connection Error",
-            description: "Unable to connect to the database. Please try again later.",
-            variant: "destructive",
-          })
-        } else if (errorData.type === "AUTHENTICATION") {
-          setError("Invalid username or password")
-          toast({
-            title: "Authentication Failed",
-            description: "Invalid username or password. Please try again.",
-            variant: "destructive",
-          })
-        } else {
-          setError(errorData.error || "An error occurred during login")
-          toast({
-            title: "Login Error",
-            description: errorData.error || "An error occurred during login. Please try again.",
-            variant: "destructive",
-          })
         }
         return
       }
 
       // For successful responses, parse JSON
-      let data
       try {
-        data = await response.json()
+        const data = await response.json()
+
+        // Login successful
+        toast({
+          title: "Login Successful",
+          description: "You have been logged in successfully.",
+        })
+
+        // Redirect to the return URL or dashboard
+        if (returnTo) {
+          const decodedReturnTo = decodeURIComponent(returnTo)
+          // Validate the returnTo URL to prevent open redirect vulnerabilities
+          if (decodedReturnTo.startsWith("/") && !decodedReturnTo.includes("//")) {
+            router.push(decodedReturnTo)
+            return
+          }
+        }
+
+        router.push("/dashboard")
       } catch (jsonError) {
         console.error("Error parsing successful response:", jsonError)
         setError("Received an invalid response from the server")
@@ -89,26 +109,7 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
           description: "The server returned an invalid response. Please try again later.",
           variant: "destructive",
         })
-        return
       }
-
-      // Login successful
-      toast({
-        title: "Login Successful",
-        description: "You have been logged in successfully.",
-      })
-
-      // Redirect to the return URL or dashboard
-      if (returnTo) {
-        const decodedReturnTo = decodeURIComponent(returnTo)
-        // Validate the returnTo URL to prevent open redirect vulnerabilities
-        if (decodedReturnTo.startsWith("/") && !decodedReturnTo.includes("//")) {
-          router.push(decodedReturnTo)
-          return
-        }
-      }
-
-      router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")

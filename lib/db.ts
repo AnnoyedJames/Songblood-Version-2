@@ -264,6 +264,283 @@ export async function getBloodInventory(hospitalId: number) {
   }
 }
 
+// Function to check database connection with improved error handling
+export async function checkDatabaseConnection() {
+  try {
+    // Implement retry logic for the connection check
+    return await retryWithBackoff(
+      async () => {
+        try {
+          // Use tagged template literal syntax
+          await dbClient`SELECT 1`
+          return true
+        } catch (error) {
+          console.error("Database connection check failed:", error)
+          // Throw to trigger retry
+          throw error
+        }
+      },
+      {
+        maxRetries: 2,
+        initialDelayMs: 500,
+        maxDelayMs: 2000,
+        backoffFactor: 2,
+        onRetry: (attempt, error) => {
+          console.log(`Retrying database connection check (attempt ${attempt}/2): ${error.message || "Unknown error"}`)
+        },
+      },
+    ).catch((error) => {
+      // After all retries failed
+      console.error("All database connection check retries failed:", error)
+      return false
+    })
+  } catch (error) {
+    // Handle any other errors
+    console.error("Database connection check error:", error)
+    return false
+  }
+}
+
+// Function to get connection error message
+export function getConnectionErrorMessage() {
+  return CONNECTION_ERROR_MESSAGE
+}
+
+// Add this function to the existing db.ts file
+export async function registerAdmin(username: string, password: string, hospitalId: number) {
+  try {
+    // First check if the hospital exists
+    // Use tagged template literal syntax
+    const hospitalCheck = await dbClient`
+      SELECT hospital_id FROM hospital WHERE hospital_id = ${hospitalId}
+    `
+
+    if (hospitalCheck.length === 0) {
+      throw new AppError(ErrorType.VALIDATION, "Hospital not found")
+    }
+
+    // Check if username already exists
+    // Use tagged template literal syntax
+    const usernameCheck = await dbClient`
+      SELECT admin_id FROM admin WHERE admin_username = ${username}
+    `
+
+    if (usernameCheck.length > 0) {
+      throw new AppError(ErrorType.VALIDATION, "Username already exists")
+    }
+
+    // Insert new admin
+    // Use tagged template literal syntax
+    const result = await dbClient`
+      INSERT INTO admin (admin_username, admin_password, hospital_id)
+      VALUES (${username}, ${password}, ${hospitalId})
+      RETURNING admin_id
+    `
+
+    if (result.length > 0) {
+      return { success: true }
+    } else {
+      throw new AppError(ErrorType.SERVER, "Failed to create admin account")
+    }
+  } catch (error) {
+    throw logError(error, "Register Admin")
+  }
+}
+
+// Helper function to get all hospitals for dropdown lists
+export async function getAllHospitals() {
+  try {
+    const cacheKey = "all-hospitals"
+    const cached = queryCache.get(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // Use tagged template literal syntax
+    const hospitals = await dbClient`
+      SELECT hospital_id, hospital_name 
+      FROM hospital 
+      ORDER BY hospital_name
+    `
+
+    queryCache.set(cacheKey, hospitals)
+    return hospitals
+  } catch (error) {
+    console.error("Error fetching hospitals:", error)
+    throw logError(error, "Get All Hospitals")
+  }
+}
+
+// Helper function to get plasma inventory for a hospital
+export async function getPlasmaInventory(hospitalId: number) {
+  try {
+    const cacheKey = `plasma:${hospitalId}`
+    const cached = queryCache.get<any[]>(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // Use tagged template literal syntax - now filtering for active=true
+    const plasma = await dbClient`
+      SELECT blood_type, COUNT(*) as count, SUM(amount) as total_amount
+      FROM plasma_inventory
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
+      GROUP BY blood_type
+      ORDER BY blood_type
+    `
+
+    // Ensure numeric values are properly parsed
+    const processedData = plasma.map((item) => ({
+      ...item,
+      count: Number(item.count),
+      total_amount: Number(item.total_amount),
+    }))
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
+  } catch (error) {
+    console.error("Error fetching plasma inventory:", error)
+    throw logError(error, "Get Plasma Inventory")
+  }
+}
+
+// Helper function to get platelets inventory for a hospital
+export async function getPlateletsInventory(hospitalId: number) {
+  try {
+    const cacheKey = `platelets:${hospitalId}`
+    const cached = queryCache.get<any[]>(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // Use tagged template literal syntax - now filtering for active=true
+    const platelets = await dbClient`
+      SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
+      FROM platelets_inventory
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
+      GROUP BY blood_type, rh
+      ORDER BY blood_type, rh
+    `
+
+    // Ensure numeric values are properly parsed
+    const processedData = platelets.map((item) => ({
+      ...item,
+      count: Number(item.count),
+      total_amount: Number(item.total_amount),
+    }))
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
+  } catch (error) {
+    console.error("Error fetching platelets inventory:", error)
+    throw logError(error, "Get Platelets Inventory")
+  }
+}
+
+// Helper function to get surplus alerts
+export async function getSurplusAlerts(hospitalId: number) {
+  try {
+    // Get current hospital's inventory
+    // Use tagged template literal syntax - now filtering for active=true
+    const currentHospitalInventory = await dbClient`
+      SELECT 'RedBlood' as type, blood_type, rh, COUNT(*) as count
+      FROM redblood_inventory
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
+      GROUP BY blood_type, rh
+      UNION ALL
+      SELECT 'Plasma' as type, blood_type, '' as rh, COUNT(*) as count
+      FROM plasma_inventory
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
+      GROUP BY blood_type
+      UNION ALL
+      SELECT 'Platelets' as type, blood_type, rh, COUNT(*) as count
+      FROM platelets_inventory
+      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
+      GROUP BY blood_type, rh
+    `
+
+    // Get other hospitals with surplus
+    const alerts = []
+
+    for (const item of currentHospitalInventory) {
+      const { type, blood_type, rh, count } = item
+
+      // If current hospital has low stock (less than 5 units)
+      if (Number(count) < 5) {
+        let surplusHospitals
+
+        if (type === "RedBlood") {
+          // Use tagged template literal syntax - now filtering for active=true
+          surplusHospitals = await dbClient`
+            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
+            FROM redblood_inventory rb
+            JOIN hospital h ON rb.hospital_id = h.hospital_id
+            WHERE rb.hospital_id != ${hospitalId}
+              AND rb.blood_type = ${blood_type}
+              AND rb.rh = ${rh}
+              AND rb.expiration_date > CURRENT_DATE
+              AND rb.active = true
+            GROUP BY h.hospital_id, h.hospital_name
+            HAVING COUNT(*) > 10
+            ORDER BY count DESC
+          `
+        } else if (type === "Plasma") {
+          // Use tagged template literal syntax - now filtering for active=true
+          surplusHospitals = await dbClient`
+            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
+            FROM plasma_inventory p
+            JOIN hospital h ON p.hospital_id = h.hospital_id
+            WHERE p.hospital_id != ${hospitalId}
+              AND p.blood_type = ${blood_type}
+              AND p.expiration_date > CURRENT_DATE
+              AND p.active = true
+            GROUP BY h.hospital_id, h.hospital_name
+            HAVING COUNT(*) > 10
+            ORDER BY count DESC
+          `
+        } else if (type === "Platelets") {
+          // Use tagged template literal syntax - now filtering for active=true
+          surplusHospitals = await dbClient`
+            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
+            FROM platelets_inventory p
+            JOIN hospital h ON p.hospital_id = h.hospital_id
+            WHERE p.hospital_id != ${hospitalId}
+              AND p.blood_type = ${blood_type}
+              AND p.rh = ${rh}
+              AND p.expiration_date > CURRENT_DATE
+              AND p.active = true
+            GROUP BY h.hospital_id, h.hospital_name
+            HAVING COUNT(*) > 10
+            ORDER BY count DESC
+          `
+        }
+
+        if (surplusHospitals && surplusHospitals.length > 0) {
+          for (const hospital of surplusHospitals) {
+            alerts.push({
+              type,
+              bloodType: blood_type,
+              rh: rh || "",
+              hospitalName: hospital.hospital_name,
+              hospitalId: hospital.hospital_id,
+              count: hospital.count,
+              yourCount: count,
+            })
+          }
+        }
+      }
+    }
+
+    return alerts
+  } catch (error) {
+    console.error("Error fetching surplus alerts:", error)
+    throw logError(error, "Get Surplus Alerts")
+  }
+}
+
 // Helper function to add new red blood cell bag
 export async function addNewRedBloodBag(
   donorName: string,
@@ -642,215 +919,6 @@ export async function addNewPlateletsBag(
   }
 }
 
-// Function to check database connection with improved error handling
-export async function checkDatabaseConnection() {
-  try {
-    // Implement retry logic for the connection check
-    return await retryWithBackoff(
-      async () => {
-        try {
-          // Use tagged template literal syntax
-          await dbClient`SELECT 1`
-          return true
-        } catch (error) {
-          console.error("Database connection check failed:", error)
-          // Throw to trigger retry
-          throw error
-        }
-      },
-      {
-        maxRetries: 2,
-        initialDelayMs: 500,
-        maxDelayMs: 2000,
-        backoffFactor: 2,
-        onRetry: (attempt, error) => {
-          console.log(`Retrying database connection check (attempt ${attempt}/2): ${error.message || "Unknown error"}`)
-        },
-      },
-    ).catch((error) => {
-      // After all retries failed
-      console.error("All database connection check retries failed:", error)
-      return false
-    })
-  } catch (error) {
-    // Handle any other errors
-    console.error("Database connection check error:", error)
-    return false
-  }
-}
-
-// Function to get connection error message
-export function getConnectionErrorMessage() {
-  return CONNECTION_ERROR_MESSAGE
-}
-
-// Add this function to the existing db.ts file
-export async function registerAdmin(username: string, password: string, hospitalId: number) {
-  try {
-    // First check if the hospital exists
-    // Use tagged template literal syntax
-    const hospitalCheck = await dbClient`
-      SELECT hospital_id FROM hospital WHERE hospital_id = ${hospitalId}
-    `
-
-    if (hospitalCheck.length === 0) {
-      throw new AppError(ErrorType.VALIDATION, "Hospital not found")
-    }
-
-    // Check if username already exists
-    // Use tagged template literal syntax
-    const usernameCheck = await dbClient`
-      SELECT admin_id FROM admin WHERE admin_username = ${username}
-    `
-
-    if (usernameCheck.length > 0) {
-      throw new AppError(ErrorType.VALIDATION, "Username already exists")
-    }
-
-    // Insert new admin
-    // Use tagged template literal syntax
-    const result = await dbClient`
-      INSERT INTO admin (admin_username, admin_password, hospital_id)
-      VALUES (${username}, ${password}, ${hospitalId})
-      RETURNING admin_id
-    `
-
-    if (result.length > 0) {
-      return { success: true }
-    } else {
-      throw new AppError(ErrorType.SERVER, "Failed to create admin account")
-    }
-  } catch (error) {
-    throw logError(error, "Register Admin")
-  }
-}
-
-// Helper function to get all hospitals for dropdown lists
-export async function getAllHospitals() {
-  try {
-    const cacheKey = "all-hospitals"
-    const cached = queryCache.get(cacheKey)
-
-    if (cached) {
-      return cached
-    }
-
-    // Use tagged template literal syntax
-    const hospitals = await dbClient`
-      SELECT hospital_id, hospital_name 
-      FROM hospital 
-      ORDER BY hospital_name
-    `
-
-    queryCache.set(cacheKey, hospitals)
-    return hospitals
-  } catch (error) {
-    console.error("Error fetching hospitals:", error)
-    throw logError(error, "Get All Hospitals")
-  }
-}
-
-// Helper function to get surplus alerts
-export async function getSurplusAlerts(hospitalId: number) {
-  try {
-    // Get current hospital's inventory
-    // Use tagged template literal syntax - now filtering for active=true
-    const currentHospitalInventory = await dbClient`
-      SELECT 'RedBlood' as type, blood_type, rh, COUNT(*) as count
-      FROM redblood_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
-      GROUP BY blood_type, rh
-      UNION ALL
-      SELECT 'Plasma' as type, blood_type, '' as rh, COUNT(*) as count
-      FROM plasma_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
-      GROUP BY blood_type
-      UNION ALL
-      SELECT 'Platelets' as type, blood_type, rh, COUNT(*) as count
-      FROM platelets_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
-      GROUP BY blood_type, rh
-    `
-
-    // Get other hospitals with surplus
-    const alerts = []
-
-    for (const item of currentHospitalInventory) {
-      const { type, blood_type, rh, count } = item
-
-      // If current hospital has low stock (less than 5 units)
-      if (Number(count) < 5) {
-        let surplusHospitals
-
-        if (type === "RedBlood") {
-          // Use tagged template literal syntax - now filtering for active=true
-          surplusHospitals = await dbClient`
-            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
-            FROM redblood_inventory rb
-            JOIN hospital h ON rb.hospital_id = h.hospital_id
-            WHERE rb.hospital_id != ${hospitalId}
-              AND rb.blood_type = ${blood_type}
-              AND rb.rh = ${rh}
-              AND rb.expiration_date > CURRENT_DATE
-              AND rb.active = true
-            GROUP BY h.hospital_id, h.hospital_name
-            HAVING COUNT(*) > 10
-            ORDER BY count DESC
-          `
-        } else if (type === "Plasma") {
-          // Use tagged template literal syntax - now filtering for active=true
-          surplusHospitals = await dbClient`
-            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
-            FROM plasma_inventory p
-            JOIN hospital h ON p.hospital_id = h.hospital_id
-            WHERE p.hospital_id != ${hospitalId}
-              AND p.blood_type = ${blood_type}
-              AND p.expiration_date > CURRENT_DATE
-              AND p.active = true
-            GROUP BY h.hospital_id, h.hospital_name
-            HAVING COUNT(*) > 10
-            ORDER BY count DESC
-          `
-        } else if (type === "Platelets") {
-          // Use tagged template literal syntax - now filtering for active=true
-          surplusHospitals = await dbClient`
-            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
-            FROM platelets_inventory p
-            JOIN hospital h ON p.hospital_id = h.hospital_id
-            WHERE p.hospital_id != ${hospitalId}
-              AND p.blood_type = ${blood_type}
-              AND p.rh = ${rh}
-              AND p.expiration_date > CURRENT_DATE
-              AND p.active = true
-            GROUP BY h.hospital_id, h.hospital_name
-            HAVING COUNT(*) > 10
-            ORDER BY count DESC
-          `
-        }
-
-        if (surplusHospitals && surplusHospitals.length > 0) {
-          for (const hospital of surplusHospitals) {
-            alerts.push({
-              type,
-              bloodType: blood_type,
-              rh: rh || "",
-              hospitalName: hospital.hospital_name,
-              hospitalId: hospital.hospital_id,
-              count: hospital.count,
-              yourCount: count,
-            })
-          }
-        }
-      }
-    }
-
-    return alerts
-  } catch (error) {
-    console.error("Error fetching surplus alerts:", error)
-    throw logError(error, "Get Surplus Alerts")
-  }
-}
-
 // Helper function to search for donors
 export async function searchDonors(query: string, showInactive = false) {
   if (!query || query.trim() === "") return []
@@ -930,190 +998,6 @@ export async function searchDonors(query: string, showInactive = false) {
   } catch (error) {
     console.error("Error searching donors:", error)
     throw logError(error, "Search Donors")
-  }
-}
-
-// New function to soft-delete a blood inventory entry
-export async function softDeleteBloodEntry(bagId: number, entryType: string, hospitalId: number) {
-  try {
-    // Verify that the entry belongs to the hospital
-    const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
-    if (!ownershipCheck.success) {
-      return ownershipCheck
-    }
-
-    // Soft-delete the entry based on its type by setting active = false
-    let result
-    if (entryType === "RedBlood") {
-      result = await dbClient`
-        UPDATE redblood_inventory
-        SET active = false
-        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
-        RETURNING bag_id
-      `
-      // Invalidate cache
-      queryCache.invalidate(`redblood:${hospitalId}`)
-    } else if (entryType === "Plasma") {
-      result = await dbClient`
-        UPDATE plasma_inventory
-        SET active = false
-        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
-        RETURNING bag_id
-      `
-      // Invalidate cache
-      queryCache.invalidate(`plasma:${hospitalId}`)
-    } else if (entryType === "Platelets") {
-      result = await dbClient`
-        UPDATE platelets_inventory
-        SET active = false
-        WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
-        RETURNING bag_id
-      `
-      // Invalidate cache
-      queryCache.invalidate(`platelets:${hospitalId}`)
-    } else {
-      return {
-        success: false,
-        error: "Invalid entry type",
-      }
-    }
-
-    if (result && result.length > 0) {
-      return { success: true }
-    } else {
-      return {
-        success: false,
-        error: "Failed to delete entry",
-      }
-    }
-  } catch (error) {
-    console.error("Error soft-deleting blood entry:", error)
-    const appError = logError(error, "Soft Delete Blood Entry")
-    return {
-      success: false,
-      error: appError.message,
-      details: appError.details,
-    }
-  }
-}
-
-// Helper function to verify entry ownership
-async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId: number, checkActive = true) {
-  try {
-    let result
-    if (entryType === "RedBlood") {
-      result = await dbClient`
-        SELECT hospital_id FROM redblood_inventory 
-        WHERE bag_id = ${bagId} ${checkActive ? sql`AND active = true` : sql``}
-      `
-    } else if (entryType === "Plasma") {
-      result = await dbClient`
-        SELECT hospital_id FROM plasma_inventory 
-        WHERE bag_id = ${bagId} ${checkActive ? sql`AND active = true` : sql``}
-      `
-    } else if (entryType === "Platelets") {
-      result = await dbClient`
-        SELECT hospital_id FROM platelets_inventory 
-        WHERE bag_id = ${bagId} ${checkActive ? sql`AND active = true` : sql``}
-      `
-    } else {
-      return {
-        success: false,
-        error: "Invalid entry type",
-      }
-    }
-
-    if (!result || result.length === 0) {
-      return {
-        success: false,
-        error: "Entry not found",
-      }
-    }
-
-    if (result[0].hospital_id !== hospitalId) {
-      return {
-        success: false,
-        error: "You don't have permission to modify this entry",
-      }
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error verifying entry ownership:", error)
-    const appError = logError(error, "Verify Entry Ownership")
-    return {
-      success: false,
-      error: appError.message,
-      details: appError.details,
-    }
-  }
-}
-
-// Helper function to get plasma inventory for a hospital
-export async function getPlasmaInventory(hospitalId: number) {
-  try {
-    const cacheKey = `plasma:${hospitalId}`
-    const cached = queryCache.get<any[]>(cacheKey)
-
-    if (cached) {
-      return cached
-    }
-
-    // Use tagged template literal syntax - now filtering for active=true
-    const plasma = await dbClient`
-      SELECT blood_type, COUNT(*) as count, SUM(amount) as total_amount
-      FROM plasma_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
-      GROUP BY blood_type
-      ORDER BY blood_type
-    `
-
-    // Ensure numeric values are properly parsed
-    const processedData = plasma.map((item) => ({
-      ...item,
-      count: Number(item.count),
-      total_amount: Number(item.total_amount),
-    }))
-
-    queryCache.set(cacheKey, processedData)
-    return processedData
-  } catch (error) {
-    console.error("Error fetching plasma inventory:", error)
-    throw logError(error, "Get Plasma Inventory")
-  }
-}
-
-// Helper function to get platelets inventory for a hospital
-export async function getPlateletsInventory(hospitalId: number) {
-  try {
-    const cacheKey = `platelets:${hospitalId}`
-    const cached = queryCache.get<any[]>(cacheKey)
-
-    if (cached) {
-      return cached
-    }
-
-    // Use tagged template literal syntax - now filtering for active=true
-    const platelets = await dbClient`
-      SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
-      FROM platelets_inventory
-      WHERE hospital_id = ${hospitalId} AND expiration_date > CURRENT_DATE AND active = true
-      GROUP BY blood_type, rh
-      ORDER BY blood_type, rh
-    `
-
-    // Ensure numeric values are properly parsed
-    const processedData = platelets.map((item) => ({
-      ...item,
-      count: Number(item.count),
-      total_amount: Number(item.total_amount),
-    }))
-
-    queryCache.set(cacheKey, processedData)
-    return processedData
-  } catch (error) {
-    console.error("Error fetching platelets inventory:", error)
-    throw logError(error, "Get Platelets Inventory")
   }
 }
 
