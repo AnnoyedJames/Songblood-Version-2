@@ -11,11 +11,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 
-interface LoginFormProps {
-  isPreview: boolean
-}
-
-export default function LoginForm({ isPreview }: LoginFormProps) {
+export default function LoginForm() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -28,16 +24,6 @@ export default function LoginForm({ isPreview }: LoginFormProps) {
     setLoading(true)
 
     try {
-      // In preview mode, skip the actual login request
-      if (isPreview) {
-        console.log("[Preview Mode] Simulating login with:", { username, password })
-        // Wait a bit to simulate network request
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        // Redirect to dashboard
-        router.push("/dashboard")
-        return
-      }
-
       // Regular login flow
       const response = await fetch("/api/login", {
         method: "POST",
@@ -52,6 +38,9 @@ export default function LoginForm({ isPreview }: LoginFormProps) {
       if (!response.ok) {
         throw new Error(data.error || "Login failed")
       }
+
+      // Add debugging to see the response
+      console.log("Login response:", data)
 
       // Redirect to dashboard on successful login
       router.push("/dashboard")

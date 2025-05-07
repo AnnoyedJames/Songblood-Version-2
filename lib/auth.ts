@@ -2,7 +2,6 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { sql } from "@/lib/db"
 import { AppError, ErrorType } from "@/lib/error-handling"
-import { isPreviewEnvironment } from "@/lib/env-utils"
 
 export type SessionData = {
   adminId: number
@@ -25,17 +24,6 @@ export async function requireAuth(): Promise<SessionData> {
     if (!sessionToken) {
       console.log("No session token found, redirecting to login")
       redirect("/login?reason=no-session")
-    }
-
-    // In preview environments, use mock session data
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Using mock session data")
-      return {
-        adminId: 1,
-        hospitalId: 1,
-        username: "admin",
-        isLoggedIn: true,
-      }
     }
 
     // Verify session in database
@@ -86,12 +74,6 @@ export async function createSession(adminId: number): Promise<string> {
     // Set expiration to 24 hours from now
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
-    // In preview environments, just return the token without database operations
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Creating mock session for admin ID:", adminId)
-      return token
-    }
-
     // Store session in database
     await sql(
       `
@@ -119,12 +101,6 @@ export async function logout(): Promise<void> {
     const sessionToken = cookieStore.get("session_token")?.value
 
     if (!sessionToken) {
-      return
-    }
-
-    // In preview environments, just log the logout
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Logging out session")
       return
     }
 

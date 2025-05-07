@@ -14,7 +14,6 @@ import ConfirmationDialog from "@/components/confirmation-dialog"
 import EditEntryDialog from "@/components/edit-entry-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { formatBloodType } from "@/lib/utils"
-import { isPreviewEnvironment } from "@/lib/env-utils"
 
 type EntryType = {
   type: string
@@ -86,42 +85,9 @@ export default function DataTable({ showInactive, hospitalId }: DataTableProps) 
         title: "Error",
         description: "Failed to load data: " + errorMessage,
       })
-
-      // Use mock data in preview environments
-      if (isPreviewEnvironment()) {
-        console.log("Using mock data for preview environment")
-        setEntries(generateMockData(showInactive))
-        setError(null)
-      }
     } finally {
       setLoading(false)
     }
-  }
-
-  // Generate mock data for preview environments
-  const generateMockData = (inactive: boolean): EntryType[] => {
-    const types = ["RedBlood", "Plasma", "Platelets"]
-    const bloodTypes = ["A", "B", "AB", "O"]
-    const rhFactors = ["+", "-"]
-
-    return Array.from({ length: 10 }, (_, i) => {
-      const type = types[i % types.length]
-      const bloodType = bloodTypes[i % bloodTypes.length]
-      const rh = type !== "Plasma" ? rhFactors[i % rhFactors.length] : ""
-
-      return {
-        type,
-        bag_id: 1000 + i,
-        donor_name: `Donor ${i + 1}`,
-        blood_type: bloodType,
-        rh,
-        amount: 300 + i * 50,
-        expiration_date: new Date(Date.now() + (i + 10) * 24 * 60 * 60 * 1000).toISOString(),
-        hospital_name: "Central Hospital",
-        hospital_id: 1,
-        active: !inactive,
-      }
-    })
   }
 
   // Fetch data on initial load and when showInactive changes
@@ -166,12 +132,6 @@ export default function DataTable({ showInactive, hospitalId }: DataTableProps) 
         title: "Error",
         description: "Failed to delete entry: " + (err instanceof Error ? err.message : String(err)),
       })
-
-      // In preview environments, update UI anyway
-      if (isPreviewEnvironment()) {
-        setEntries(entries.filter((e) => e.bag_id !== entry.bag_id))
-        setEntryToDelete(null)
-      }
     }
   }
 
@@ -206,12 +166,6 @@ export default function DataTable({ showInactive, hospitalId }: DataTableProps) 
         title: "Error",
         description: "Failed to restore entry: " + (err instanceof Error ? err.message : String(err)),
       })
-
-      // In preview environments, update UI anyway
-      if (isPreviewEnvironment()) {
-        setEntries(entries.filter((e) => e.bag_id !== entry.bag_id))
-        setEntryToRestore(null)
-      }
     }
   }
 

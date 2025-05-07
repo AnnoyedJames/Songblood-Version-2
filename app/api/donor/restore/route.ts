@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import { sql } from "@/lib/db"
-import { isPreviewEnvironment } from "@/lib/env-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,14 +15,6 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!bagId || !entryType) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-    }
-
-    // Check if we're in a preview environment
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Simulating restore:", { bagId, entryType })
-
-      // Return success for preview environments
-      return NextResponse.json({ success: true })
     }
 
     // Determine which table to update based on entry type

@@ -1,37 +1,44 @@
 import { neon } from "@neondatabase/serverless"
-import { isPreviewEnvironment } from "@/lib/env-utils"
 import { AppError, ErrorType } from "@/lib/error-handling"
 
 // Initialize the database connection
 const dbUrl = process.env.DATABASE_URL
 
-// Create a SQL query function
+// Create a SQL query function with better error handling
 export async function sql(query: string, ...params: any[]) {
   try {
-    // In preview environments, return mock data
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] SQL query:", query)
-      console.log("[Preview Mode] SQL params:", params)
-      return []
-    }
-
     // Check if database URL is available
     if (!dbUrl) {
+      console.error("DATABASE_URL environment variable is not set")
       throw new Error("DATABASE_URL environment variable is not set")
     }
 
     // Create a database client
     const client = neon(dbUrl)
 
+    // Log the query for debugging (but not in production)
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Executing SQL query:", query)
+      console.log("SQL params:", params)
+    }
+
     // Execute the query
     const result = await client(query, ...params)
+
+    // Log the result for debugging (but not in production)
+    if (process.env.NODE_ENV !== "production") {
+      console.log("SQL result:", result)
+    }
+
     return result
   } catch (error) {
     console.error("Database error:", error)
-    throw new AppError(
-      `Database operation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      ErrorType.DATABASE_CONNECTION,
-    )
+
+    // Provide more detailed error information
+    const errorMessage = error instanceof Error ? error.message : "Unknown database error"
+    console.error("Database error details:", errorMessage)
+
+    throw new AppError(`Database operation failed: ${errorMessage}`, ErrorType.DATABASE_CONNECTION, { query, params })
   }
 }
 
@@ -40,12 +47,6 @@ export async function sql(query: string, ...params: any[]) {
  */
 export async function searchDonors(searchTerm: string, showInactive: boolean) {
   try {
-    // In preview environments, return mock data
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Searching donors:", { searchTerm, showInactive })
-      return []
-    }
-
     // Construct the query
     const query = `
       SELECT * FROM donors
@@ -68,12 +69,6 @@ export async function searchDonors(searchTerm: string, showInactive: boolean) {
  */
 export async function updateDonor(donor: any) {
   try {
-    // In preview environments, just log the update
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Updating donor:", donor)
-      return
-    }
-
     // Construct the query
     const query = `
       UPDATE donors
@@ -95,12 +90,6 @@ export async function updateDonor(donor: any) {
  */
 export async function softDeleteDonor(id: number) {
   try {
-    // In preview environments, just log the delete
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Soft deleting donor:", id)
-      return
-    }
-
     // Construct the query
     const query = `
       UPDATE donors
@@ -121,12 +110,6 @@ export async function softDeleteDonor(id: number) {
  */
 export async function restoreDonor(id: number) {
   try {
-    // In preview environments, just log the restore
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Restoring donor:", id)
-      return
-    }
-
     // Construct the query
     const query = `
       UPDATE donors

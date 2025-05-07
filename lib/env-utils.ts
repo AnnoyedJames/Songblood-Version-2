@@ -3,18 +3,6 @@
  */
 
 /**
- * Checks if the application is running in a preview environment
- * This includes Vercel preview deployments and local development
- */
-export function isPreviewEnvironment(): boolean {
-  return (
-    process.env.VERCEL_ENV === "preview" ||
-    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
-    process.env.NODE_ENV === "development"
-  )
-}
-
-/**
  * Checks if the application is running in a production environment
  */
 export function isProductionEnvironment(): boolean {
@@ -25,13 +13,20 @@ export function isProductionEnvironment(): boolean {
  * Gets the current environment name
  */
 export function getEnvironmentName(): string {
-  if (isPreviewEnvironment()) {
-    return "preview"
-  } else if (isProductionEnvironment()) {
+  if (isProductionEnvironment()) {
     return "production"
-  } else {
+  } else if (process.env.VERCEL_ENV === "development" || process.env.NODE_ENV === "development") {
     return "development"
+  } else {
+    return "staging"
   }
+}
+
+/**
+ * Checks if the application is running in a preview environment
+ */
+export function isPreviewEnvironment(): boolean {
+  return process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview"
 }
 
 /**

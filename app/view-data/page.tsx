@@ -1,7 +1,5 @@
 import type { Metadata } from "next"
 import { requireAuth } from "@/lib/auth"
-import { redirect } from "next/navigation"
-import { isPreviewEnvironment } from "@/lib/env-utils"
 import ViewDataClient from "./view-data-client"
 
 export const metadata: Metadata = {
@@ -11,42 +9,8 @@ export const metadata: Metadata = {
 
 export default async function ViewDataPage() {
   try {
-    // Get session data or use mock data in preview environments
-    let session
-
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Using mock session for view-data page")
-      session = {
-        adminId: 1,
-        hospitalId: 1,
-        username: "demo",
-        isLoggedIn: true,
-      }
-    } else {
-      try {
-        session = await requireAuth()
-      } catch (error) {
-        console.error("Auth error:", error)
-        // Use mock session if auth fails in development
-        if (process.env.NODE_ENV === "development") {
-          session = {
-            adminId: 1,
-            hospitalId: 1,
-            username: "demo",
-            isLoggedIn: true,
-          }
-        } else {
-          // In production, rethrow the error to be handled by the client
-          throw error
-        }
-      }
-    }
-
-    // If no session, redirect to login
-    if (!session) {
-      redirect("/login?reason=no-session")
-    }
-
+    // Get session data
+    const session = await requireAuth()
     const { hospitalId } = session
 
     // Render the client component with the hospital ID

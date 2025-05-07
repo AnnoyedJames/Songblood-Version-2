@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { sql } from "@/lib/db"
 import { createSession } from "@/lib/auth"
-import { isPreviewEnvironment } from "@/lib/env-utils"
+import { verifyAdminCredentials } from "@/lib/auth-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,17 +9,28 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { username, password } = body
 
+    // Add detailed logging
+    console.log(`Login attempt for username: ${username}`)
+
     // Validate required fields
     if (!username || !password) {
+      console.log("Login failed: Missing username or password")
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    // Check if we're in a preview environment
-    if (isPreviewEnvironment()) {
-      console.log("[Preview Mode] Simulating login for:", username)
+    // Verify credentials
+    try {
+      const adminId = await verifyAdminCredentials(username, password)
 
-      // Create a session token
-      const token = await createSession(1)
+      if (!adminId) {
+        console.log(`Login failed: Invalid credentials for username: ${username}`)
+        return NextResponse.json({ error: "Invalid username or password" }, { status: 401 })
+      }
+
+      console.log(`Login successful for username: ${username}, adminId: ${adminId}`)
+
+      // Create a session
+      const token = await createSession(adminId)
 
       // Set the session cookie
       cookies().set({
@@ -33,46 +43,11 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60 * 24, // 1 day
       })
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, message: "Login successful" })
+    } catch (error) {
+      console.error("Error verifying credentials:", error)
+      return NextResponse.json({ error: "Authentication failed" }, { status: 401 })
     }
-
-    // Verify credentials
-    const result = await sql(
-      `
-      SELECT id, hospital_id, password_hash
-      FROM admins
-      WHERE username = $1
-    `,
-      username,
-    )
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Invalid username or password" }, { status: 401 })
-    }
-
-    const admin = result[0]
-
-    // In a real app, you would verify the password hash here
-    // For simplicity, we're just checking if the passwords match
-    if (password !== admin.password_hash) {
-      return NextResponse.json({ error: "Invalid username or password" }, { status: 401 })
-    }
-
-    // Create a session
-    const token = await createSession(admin.id)
-
-    // Set the session cookie
-    cookies().set({
-      name: "session_token",
-      value: token,
-      httpOnly: true,
-      path: "/",
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24, // 1 day
-    })
-
-    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Login failed" }, { status: 500 })
