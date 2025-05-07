@@ -1,60 +1,79 @@
-import Link from "next/link"
-import { getHospitalById } from "@/lib/db"
-import NavLink from "./nav-link"
-import LogoutButton from "./logout-button"
-import DbConnectionStatus from "./db-connection-status"
-import { Droplets } from "lucide-react"
+"use client"
 
-export default async function Header({ hospitalId }: { hospitalId: number }) {
-  // Fetch hospital data
-  let hospital
-  try {
-    hospital = await getHospitalById(hospitalId)
-  } catch (error) {
-    console.error("Error fetching hospital data:", error)
-    hospital = { hospital_name: "Unknown Hospital", hospital_id: hospitalId }
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+import LogoutButton from "./logout-button"
+
+type HeaderProps = {
+  hospitalId: number
+}
+
+export default function Header({ hospitalId }: HeaderProps) {
+  const pathname = usePathname()
+
+  const isActive = (path: string) => {
+    return pathname === path
   }
 
   return (
-    <header className="bg-white border-b">
-      <div className="container flex items-center justify-between h-16 px-4">
-        <div className="flex items-center gap-8">
-          <Link href="/dashboard" className="font-bold text-xl text-primary">
-            Songblood
+    <header className="bg-white border-b sticky top-0 z-10">
+      <div className="container flex h-16 items-center justify-between px-4">
+        <div className="flex items-center gap-6 md:gap-10">
+          <Link href="/dashboard" className="flex items-center space-x-2">
+            <span className="font-bold text-xl">Songblood</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-6">
-            <NavLink href="/dashboard">Dashboard</NavLink>
-            <NavLink href="/add-entry">Add Entry</NavLink>
-            <NavLink href="/donor-search">Donor Search</NavLink>
-            <NavLink href="/surplus">
-              <span className="flex items-center gap-1">
-                <Droplets className="h-4 w-4" />
-                Surplus
-              </span>
-            </NavLink>
+          <nav className="hidden md:flex gap-6">
+            <Link
+              href="/dashboard"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                isActive("/dashboard") ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/add-entry"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                isActive("/add-entry") ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              Add Entry
+            </Link>
+            <Link
+              href="/view-data"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                isActive("/view-data") ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              View Data
+            </Link>
+            <Link
+              href="/surplus"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                isActive("/surplus") || pathname.startsWith("/surplus/") ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              Surplus
+            </Link>
+            <Link
+              href="/diagnostics"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                isActive("/diagnostics") ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              Diagnostics
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <DbConnectionStatus />
-          <div className="hidden md:block text-sm text-right">
-            <div className="font-medium">{hospital.hospital_name}</div>
-            <div className="text-muted-foreground text-xs">ID: {hospitalId}</div>
-          </div>
           <LogoutButton />
         </div>
-      </div>
-      <div className="md:hidden border-t">
-        <nav className="container flex items-center justify-between px-4 py-2 overflow-x-auto">
-          <NavLink href="/dashboard">Dashboard</NavLink>
-          <NavLink href="/add-entry">Add Entry</NavLink>
-          <NavLink href="/donor-search">Donor Search</NavLink>
-          <NavLink href="/surplus">
-            <span className="flex items-center gap-1">
-              <Droplets className="h-3.5 w-3.5" />
-              Surplus
-            </span>
-          </NavLink>
-        </nav>
       </div>
     </header>
   )

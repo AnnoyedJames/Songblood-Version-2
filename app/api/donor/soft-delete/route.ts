@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { deleteBloodEntry } from "@/lib/db-diagnostics"
+import { sql } from "@/lib/db"
 import { getSessionData } from "@/lib/session-utils"
 
 export async function POST(request: Request) {
@@ -19,12 +19,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Soft delete the entry
-    const result = await deleteBloodEntry(bagId, entryType, session.hospitalId)
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error || "Failed to delete entry" }, { status: 400 })
+    // Determine which table to update based on entry type
+    let tableName = ""
+    if (entryType === "RedBlood") {
+      tableName = "redblood_inventory"
+    } else if (entryType === "Plasma") {
+      tableName = "plasma_inventory"
+    } else if (entryType === "Platelets") {
+      tableName = "platelets_inventory"
+    } else {
+      return NextResponse.json({ error: "Invalid entry type" }, { status: 400 })
     }
+
+    // Get the hospital ID of the entry to ensure the user has permission to update it
+    const entryQuery = `
+      SELECT hospital_id FROM ${tableName} WHERE bag_id = $1
+    `
+    const entryResult = await sql(entryQuery, bagId)
+
+    if (entryResult.length === 0) {
+      return NextResponse.json({ error: "Entry not found" }, { status: 404 })
+    }
+
+    const entryHospitalId = entryResult[0].hospital_id
+
+    // Check if the user belongs to the same hospital as the entry
+    if (entryHospitalId !== session.hospitalId) {
+      return NextResponse.json({ error: "You don't have permission to delete this entry" }, { status: 403 })
+    }
+
+    // Soft delete the entry by setting active = false
+    const updateQuery = `
+      UPDATE ${tableName}
+      SET active = false
+      WHERE bag_id = $1
+    `
+    await sql(updateQuery, bagId)
 
     return NextResponse.json({ success: true })
   } catch (error) {

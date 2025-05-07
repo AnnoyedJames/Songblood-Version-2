@@ -25,6 +25,8 @@ type EditEntryDialogProps = {
 export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntryDialogProps) {
   const [formData, setFormData] = useState({
     ...entry,
+    // Convert date string to YYYY-MM-DD format for the date input
+    expiration_date: entry.expiration_date ? entry.expiration_date.split("T")[0] : "",
   })
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
@@ -65,11 +67,14 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
     }
   }
 
+  // Determine if this is a plasma entry (which doesn't have Rh factor)
+  const isPlasma = entry.type === "Plasma"
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Edit Blood Entry</DialogTitle>
+          <DialogTitle>Edit {entry.type} Entry</DialogTitle>
           <DialogDescription>Make changes to the blood entry details.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -100,20 +105,22 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="rh" className="text-right">
-              Rh Factor
-            </Label>
-            <Select value={formData.rh} onValueChange={(value) => handleChange("rh", value)}>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select Rh factor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="+">Positive (+)</SelectItem>
-                <SelectItem value="-">Negative (-)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {!isPlasma && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rh" className="text-right">
+                Rh Factor
+              </Label>
+              <Select value={formData.rh} onValueChange={(value) => handleChange("rh", value)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select Rh factor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="+">Positive (+)</SelectItem>
+                  <SelectItem value="-">Negative (-)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="amount" className="text-right">
               Amount (ml)
@@ -122,7 +129,7 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
               id="amount"
               type="number"
               value={formData.amount}
-              onChange={(e) => handleChange("amount", Number.parseInt(e.target.value))}
+              onChange={(e) => handleChange("amount", Number(e.target.value))}
               className="col-span-3"
             />
           </div>
@@ -133,7 +140,7 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
             <Input
               id="expiration_date"
               type="date"
-              value={formData.expiration_date ? formData.expiration_date.split("T")[0] : ""}
+              value={formData.expiration_date}
               onChange={(e) => handleChange("expiration_date", e.target.value)}
               className="col-span-3"
             />
