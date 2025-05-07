@@ -16,14 +16,18 @@ export default function LoginForm() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [detailedError, setDetailedError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setDetailedError(null)
     setLoading(true)
 
     try {
+      console.log("Submitting login form with username:", username)
+
       // Regular login flow
       const response = await fetch("/api/login", {
         method: "POST",
@@ -35,18 +39,28 @@ export default function LoginForm() {
 
       const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || "Login failed")
-      }
-
       // Add debugging to see the response
-      console.log("Login response:", data)
+      console.log("Login response status:", response.status)
+      console.log("Login response data:", data)
+
+      if (!response.ok) {
+        // Show a user-friendly error message
+        setError(data.error || "Login failed")
+
+        // Store detailed error for debugging
+        if (data.details) {
+          setDetailedError(data.details)
+        }
+
+        return
+      }
 
       // Redirect to dashboard on successful login
       router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
-      setError(err instanceof Error ? err.message : "An unexpected error occurred")
+      setError("Connection error. Please try again.")
+      setDetailedError(err instanceof Error ? err.message : "Unknown error")
     } finally {
       setLoading(false)
     }
@@ -89,6 +103,13 @@ export default function LoginForm() {
               autoComplete="current-password"
             />
           </div>
+
+          {detailedError && process.env.NODE_ENV !== "production" && (
+            <div className="text-xs text-red-500 bg-red-50 p-2 rounded border border-red-200 overflow-auto">
+              <p className="font-semibold">Detailed Error (Debug Only):</p>
+              <p>{detailedError}</p>
+            </div>
+          )}
         </CardContent>
 
         <CardFooter>

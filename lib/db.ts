@@ -22,15 +22,41 @@ export async function sql(query: string, ...params: any[]) {
       console.log("SQL params:", params)
     }
 
-    // Execute the query
-    const result = await client(query, ...params)
+    // Execute the query with timeout and retry
+    let attempts = 0
+    const maxAttempts = 3
+    let lastError
 
-    // Log the result for debugging (but not in production)
-    if (process.env.NODE_ENV !== "production") {
-      console.log("SQL result:", result)
+    while (attempts < maxAttempts) {
+      try {
+        const result = await Promise.race([
+          client(query, ...params),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Database query timeout")), 10000)),
+        ])
+
+        // Log the result for debugging (but not in production)
+        if (process.env.NODE_ENV !== "production") {
+          console.log("SQL result:", result)
+        }
+
+        return result
+      } catch (error) {
+        lastError = error
+        attempts++
+        console.error(`Database attempt ${attempts} failed:`, error)
+
+        // Only retry on connection errors
+        if (!(error instanceof Error && error.message.includes("connection"))) {
+          break
+        }
+
+        // Wait before retrying
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
     }
 
-    return result
+    // If we get here, all attempts failed
+    throw lastError
   } catch (error) {
     console.error("Database error:", error)
 
@@ -39,6 +65,20 @@ export async function sql(query: string, ...params: any[]) {
     console.error("Database error details:", errorMessage)
 
     throw new AppError(`Database operation failed: ${errorMessage}`, ErrorType.DATABASE_CONNECTION, { query, params })
+  }
+}
+
+/**
+ * Test database connection
+ * @returns True if connection is successful
+ */
+export async function testDatabaseConnection(): Promise<boolean> {
+  try {
+    const result = await sql(`SELECT 1 as connection_test`)
+    return result.length > 0 && result[0].connection_test === 1
+  } catch (error) {
+    console.error("Database connection test failed:", error)
+    return false
   }
 }
 

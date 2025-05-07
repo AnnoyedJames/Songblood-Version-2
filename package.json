@@ -58,8 +58,8 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
-    "bcryptjs": "latest",
     "@neondatabase/serverless": "latest",
+    "bcryptjs": "latest",
     "dotenv": "latest"
   },
   "devDependencies": {

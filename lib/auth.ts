@@ -74,6 +74,15 @@ export async function createSession(adminId: number): Promise<string> {
     // Set expiration to 24 hours from now
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
+    // First, clean up any existing sessions for this admin
+    await sql(
+      `
+      DELETE FROM admin_sessions
+      WHERE admin_id = $1 OR expires_at < NOW()
+    `,
+      adminId,
+    )
+
     // Store session in database
     await sql(
       `
@@ -85,6 +94,7 @@ export async function createSession(adminId: number): Promise<string> {
       expiresAt,
     )
 
+    console.log(`Created new session for admin ID ${adminId}, expires at ${expiresAt.toISOString()}`)
     return token
   } catch (error) {
     console.error("Error creating session:", error)
