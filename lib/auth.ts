@@ -27,15 +27,12 @@ export async function requireAuth(): Promise<SessionData> {
     }
 
     // Verify session in database
-    const sessionResult = await sql(
-      `
+    const sessionResult = await sql`
       SELECT a.id as admin_id, a.hospital_id, a.username
       FROM admin_sessions s
       JOIN admins a ON s.admin_id = a.id
-      WHERE s.token = $1 AND s.expires_at > NOW()
-    `,
-      sessionToken,
-    )
+      WHERE s.token = ${sessionToken} AND s.expires_at > NOW()
+    `
 
     // If session not found or expired, redirect to login
     if (sessionResult.length === 0) {
@@ -75,24 +72,16 @@ export async function createSession(adminId: number): Promise<string> {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     // First, clean up any existing sessions for this admin
-    await sql(
-      `
+    await sql`
       DELETE FROM admin_sessions
-      WHERE admin_id = $1 OR expires_at < NOW()
-    `,
-      adminId,
-    )
+      WHERE admin_id = ${adminId} OR expires_at < NOW()
+    `
 
     // Store session in database
-    await sql(
-      `
+    await sql`
       INSERT INTO admin_sessions (admin_id, token, expires_at)
-      VALUES ($1, $2, $3)
-    `,
-      adminId,
-      token,
-      expiresAt,
-    )
+      VALUES (${adminId}, ${token}, ${expiresAt})
+    `
 
     console.log(`Created new session for admin ID ${adminId}, expires at ${expiresAt.toISOString()}`)
     return token
@@ -115,13 +104,10 @@ export async function logout(): Promise<void> {
     }
 
     // Delete session from database
-    await sql(
-      `
+    await sql`
       DELETE FROM admin_sessions
-      WHERE token = $1
-    `,
-      sessionToken,
-    )
+      WHERE token = ${sessionToken}
+    `
   } catch (error) {
     console.error("Error during logout:", error)
     // We don't throw here to ensure the user can always log out

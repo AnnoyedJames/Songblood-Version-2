@@ -145,7 +145,7 @@ async function checkDatabaseStatus() {
 
   try {
     // Test basic connection
-    const connectionTest = await sql(`SELECT NOW() as server_time`)
+    const connectionTest = await sql`SELECT NOW() as server_time`
     results.connection.success = true
     results.connection.serverTime = new Date(connectionTest[0].server_time).toLocaleString()
   } catch (error) {
@@ -160,21 +160,18 @@ async function checkDatabaseStatus() {
   // Check each table
   for (const tableName of Object.keys(results.tables)) {
     try {
-      const tableCheck = await sql(
-        `
+      const tableCheck = await sql`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name = $1
+          AND table_name = ${tableName}
         ) as exists
-      `,
-        tableName,
-      )
+      `
 
       results.tables[tableName as keyof typeof results.tables].exists = tableCheck[0].exists
 
       if (tableCheck[0].exists) {
-        const countCheck = await sql(`SELECT COUNT(*) as count FROM ${tableName}`)
+        const countCheck = await sql`SELECT COUNT(*) as count FROM ${tableName}`
         results.tables[tableName as keyof typeof results.tables].count = Number.parseInt(countCheck[0].count)
       }
     } catch (error) {

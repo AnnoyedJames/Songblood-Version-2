@@ -4,22 +4,26 @@ import { AppError, ErrorType } from "@/lib/error-handling"
 // Initialize the database connection
 const dbUrl = process.env.DATABASE_URL
 
-// Create a SQL query function with better error handling
-export async function sql(query: string, ...params: any[]) {
+// Create the neon client
+const neonClient = dbUrl ? neon(dbUrl) : null
+
+/**
+ * Execute SQL query using tagged template literals
+ * @param query The SQL query with parameters as ${param}
+ * @returns Query result
+ */
+export async function sql(strings: TemplateStringsArray, ...values: any[]) {
   try {
     // Check if database URL is available
-    if (!dbUrl) {
+    if (!neonClient) {
       console.error("DATABASE_URL environment variable is not set")
       throw new Error("DATABASE_URL environment variable is not set")
     }
 
-    // Create a database client
-    const client = neon(dbUrl)
-
     // Log the query for debugging (but not in production)
     if (process.env.NODE_ENV !== "production") {
-      console.log("Executing SQL query:", query)
-      console.log("SQL params:", params)
+      console.log("Executing SQL query:", strings.join("?"))
+      console.log("SQL params:", values)
     }
 
     // Execute the query with timeout and retry
@@ -30,7 +34,7 @@ export async function sql(query: string, ...params: any[]) {
     while (attempts < maxAttempts) {
       try {
         const result = await Promise.race([
-          client(query, ...params),
+          neonClient(strings, ...values),
           new Promise((_, reject) => setTimeout(() => reject(new Error("Database query timeout")), 10000)),
         ])
 
@@ -64,7 +68,10 @@ export async function sql(query: string, ...params: any[]) {
     const errorMessage = error instanceof Error ? error.message : "Unknown database error"
     console.error("Database error details:", errorMessage)
 
-    throw new AppError(`Database operation failed: ${errorMessage}`, ErrorType.DATABASE_CONNECTION, { query, params })
+    throw new AppError(`Database operation failed: ${errorMessage}`, ErrorType.DATABASE_CONNECTION, {
+      query: strings.join("?"),
+      params: values,
+    })
   }
 }
 
@@ -74,7 +81,7 @@ export async function sql(query: string, ...params: any[]) {
  */
 export async function testDatabaseConnection(): Promise<boolean> {
   try {
-    const result = await sql(`SELECT 1 as connection_test`)
+    const result = await sql`SELECT 1 as connection_test`
     return result.length > 0 && result[0].connection_test === 1
   } catch (error) {
     console.error("Database connection test failed:", error)
@@ -87,17 +94,13 @@ export async function testDatabaseConnection(): Promise<boolean> {
  */
 export async function searchDonors(searchTerm: string, showInactive: boolean) {
   try {
-    // Construct the query
-    const query = `
+    // Execute the query using tagged template literals
+    return await sql`
       SELECT * FROM donors
-      WHERE (name ILIKE $1 OR blood_type ILIKE $1 OR contact ILIKE $1)
-      AND is_active = $2
+      WHERE (name ILIKE ${`%${searchTerm}%`} OR blood_type ILIKE ${`%${searchTerm}%`} OR contact ILIKE ${`%${searchTerm}%`})
+      AND is_active = ${!showInactive}
       ORDER BY name
     `
-    const params = [`%${searchTerm}%`, !showInactive]
-
-    // Execute the query
-    return await sql(query, ...params)
   } catch (error) {
     console.error("Error searching donors:", error)
     throw new AppError("Failed to search donors", ErrorType.DATABASE_CONNECTION)
@@ -109,16 +112,16 @@ export async function searchDonors(searchTerm: string, showInactive: boolean) {
  */
 export async function updateDonor(donor: any) {
   try {
-    // Construct the query
-    const query = `
+    // Execute the query using tagged template literals
+    await sql`
       UPDATE donors
-      SET name = $1, blood_type = $2, contact = $3, date_of_birth = $4, previous_donation = $5
-      WHERE id = $6
+      SET name = ${donor.name}, 
+          blood_type = ${donor.blood_type}, 
+          contact = ${donor.contact}, 
+          date_of_birth = ${donor.date_of_birth}, 
+          previous_donation = ${donor.previous_donation}
+      WHERE id = ${donor.id}
     `
-    const params = [donor.name, donor.blood_type, donor.contact, donor.date_of_birth, donor.previous_donation, donor.id]
-
-    // Execute the query
-    await sql(query, ...params)
   } catch (error) {
     console.error("Error updating donor:", error)
     throw new AppError("Failed to update donor", ErrorType.DATABASE_CONNECTION)
@@ -130,15 +133,12 @@ export async function updateDonor(donor: any) {
  */
 export async function softDeleteDonor(id: number) {
   try {
-    // Construct the query
-    const query = `
+    // Execute the query using tagged template literals
+    await sql`
       UPDATE donors
       SET is_active = false
-      WHERE id = $1
+      WHERE id = ${id}
     `
-
-    // Execute the query
-    await sql(query, id)
   } catch (error) {
     console.error("Error soft deleting donor:", error)
     throw new AppError("Failed to delete donor", ErrorType.DATABASE_CONNECTION)
@@ -150,15 +150,12 @@ export async function softDeleteDonor(id: number) {
  */
 export async function restoreDonor(id: number) {
   try {
-    // Construct the query
-    const query = `
+    // Execute the query using tagged template literals
+    await sql`
       UPDATE donors
       SET is_active = true
-      WHERE id = $1
+      WHERE id = ${id}
     `
-
-    // Execute the query
-    await sql(query, id)
   } catch (error) {
     console.error("Error restoring donor:", error)
     throw new AppError("Failed to restore donor", ErrorType.DATABASE_CONNECTION)

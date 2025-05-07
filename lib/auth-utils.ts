@@ -13,14 +13,11 @@ export async function verifyAdminCredentials(username: string, password: string)
     console.log(`Verifying credentials for username: ${username}`)
 
     // Query the database for the admin with the given username
-    const result = await sql(
-      `
+    const result = await sql`
       SELECT id, hospital_id, password_hash
       FROM admins
-      WHERE username = $1
-    `,
-      username,
-    )
+      WHERE username = ${username}
+    `
 
     // If no admin found with the given username
     if (result.length === 0) {

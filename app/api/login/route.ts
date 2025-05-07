@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     // First, check if the database is accessible
     try {
-      const dbCheck = await sql(`SELECT 1 as db_check`)
+      const dbCheck = await sql`SELECT 1 as db_check`
       console.log("Database connection check:", dbCheck)
     } catch (dbError) {
       console.error("Database connection error during login:", dbError)
@@ -30,19 +30,16 @@ export async function POST(request: NextRequest) {
 
     // Check if the admins table exists and has data
     try {
-      const adminCheck = await sql(`SELECT COUNT(*) as count FROM admins`)
+      const adminCheck = await sql`SELECT COUNT(*) as count FROM admins`
       console.log(`Admin count in database: ${adminCheck[0]?.count || 0}`)
 
       // If no admins exist, create a default admin for testing
       if (adminCheck[0]?.count === 0) {
         console.log("No admins found in database, creating default admin")
-        await sql(
-          `INSERT INTO admins (username, password_hash, hospital_id) 
-           VALUES ($1, $2, $3)`,
-          "admin",
-          "password123",
-          1,
-        )
+        await sql`
+          INSERT INTO admins (username, password_hash, hospital_id) 
+          VALUES ('admin', 'password123', 1)
+        `
         console.log("Default admin created")
       }
     } catch (tableError) {
