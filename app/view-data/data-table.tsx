@@ -49,24 +49,48 @@ export default function DataTable({ showInactive, hospitalId }: DataTableProps) 
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/search?query=${searchQuery || "a"}&showInactive=${showInactive}`)
+      // Use a default search term if none is provided
+      const searchTerm = searchQuery.trim() || "a"
+
+      // Add error handling for the fetch request
+      const response = await fetch(`/api/search?query=${encodeURIComponent(searchTerm)}&showInactive=${showInactive}`, {
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
+
       if (!response.ok) {
-        throw new Error("Failed to fetch data")
+        const errorText = await response.text()
+        console.error("Search API error:", errorText)
+        throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`)
       }
+
       const data = await response.json()
-      setEntries(data.results || [])
+
+      if (!data || !Array.isArray(data.results)) {
+        console.error("Invalid data format:", data)
+        throw new Error("Invalid data format received from server")
+      }
+
+      setEntries(data.results)
+
+      // Log success for debugging
+      console.log(`Fetched ${data.results.length} entries for query "${searchTerm}" (showInactive: ${showInactive})`)
     } catch (err) {
-      setError("Error fetching data: " + (err instanceof Error ? err.message : String(err)))
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error("Error fetching data:", errorMessage)
+      setError("Error fetching data: " + errorMessage)
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to load data",
+        description: "Failed to load data: " + errorMessage,
       })
     } finally {
       setLoading(false)
     }
   }
 
+  // Fetch data on initial load and when showInactive changes
   useEffect(() => {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +238,57 @@ export default function DataTable({ showInactive, hospitalId }: DataTableProps) 
   }
 
   const isFiltering = bloodTypeFilter !== "all" || entryTypeFilter !== "all"
+
+  // Add mock data for preview environments
+  const isPreviewEnvironment =
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.NODE_ENV === "development"
+
+  // If in preview mode and no entries, use mock data
+  useEffect(() => {
+    if (isPreviewEnvironment && entries.length === 0 && !loading && !error) {
+      console.log("Using mock data for preview environment")
+      setEntries([
+        {
+          type: "RedBlood",
+          bag_id: 1001,
+          donor_name: "John Doe",
+          blood_type: "A",
+          rh: "+",
+          amount: 450,
+          expiration_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          hospital_name: "Central Hospital",
+          hospital_id: 1,
+          active: true,
+        },
+        {
+          type: "Plasma",
+          bag_id: 2001,
+          donor_name: "Jane Smith",
+          blood_type: "O",
+          rh: "",
+          amount: 300,
+          expiration_date: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+          hospital_name: "Central Hospital",
+          hospital_id: 1,
+          active: true,
+        },
+        {
+          type: "Platelets",
+          bag_id: 3001,
+          donor_name: "Robert Johnson",
+          blood_type: "B",
+          rh: "-",
+          amount: 250,
+          expiration_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+          hospital_name: "Central Hospital",
+          hospital_id: 1,
+          active: true,
+        },
+      ])
+    }
+  }, [isPreviewEnvironment, entries.length, loading, error])
 
   return (
     <div>

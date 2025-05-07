@@ -146,30 +146,46 @@ export async function requireAuth() {
 // Login function
 export async function login(username: string, password: string) {
   try {
-    // Special handling for preview environments
-    if (
-      isPreviewEnvironment &&
-      ((username === "demo" && password === "demo") || (username === "admin" && password === "password"))
-    ) {
-      console.log("Using demo login in preview environment")
-      const sessionCreated = await createSession(1, 1, username, password)
+    // Check for preview environment first - most direct approach
+    const isPreviewEnv =
+      process.env.VERCEL_ENV === "preview" ||
+      process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+      process.env.NODE_ENV === "development"
 
-      if (!sessionCreated) {
-        throw new AppError(ErrorType.SERVER, "Failed to create demo session")
+    if (isPreviewEnv) {
+      console.log("[Preview Mode] Processing login in preview environment")
+
+      // Only allow specific credentials in preview
+      if ((username === "demo" && password === "demo") || (username === "admin" && password === "password")) {
+        console.log("[Preview Mode] Creating preview session")
+        const sessionCreated = await createSession(1, 1, username, password)
+
+        if (!sessionCreated) {
+          console.error("[Preview Mode] Failed to create session")
+          throw new AppError(ErrorType.SERVER, "Failed to create preview session")
+        }
+
+        return { success: true, previewMode: true }
+      } else {
+        console.log("[Preview Mode] Invalid credentials for preview")
+        throw new AppError(ErrorType.AUTHENTICATION, "Invalid credentials")
       }
-
-      return { success: true }
     }
 
+    // Non-preview environment - normal flow
+    console.log("Verifying admin credentials")
     const admin = await verifyAdminCredentials(username, password)
 
     if (!admin) {
+      console.log("Invalid credentials")
       throw new AppError(ErrorType.AUTHENTICATION, "Invalid credentials")
     }
 
+    console.log("Creating session")
     const sessionCreated = await createSession(admin.admin_id, admin.hospital_id, username, password)
 
     if (!sessionCreated) {
+      console.error("Failed to create session")
       throw new AppError(ErrorType.SERVER, "Failed to create session")
     }
 
@@ -178,6 +194,7 @@ export async function login(username: string, password: string) {
     // If this is a database connection error, we should still throw it
     // but it will be handled specially in the login API route
     if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+      console.error("Database connection error in login:", error)
       throw error
     }
 

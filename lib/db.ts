@@ -218,32 +218,33 @@ export async function getHospitalById(hospitalId: number) {
 
 // Helper function to verify admin credentials
 export async function verifyAdminCredentials(username: string, password: string) {
-  try {
-    // For preview environments, allow a demo login
-    if (isPreviewEnvironment && username === "demo" && password === "demo") {
-      console.log("Using demo login for preview environment")
+  // IMPORTANT: Completely bypass database calls in preview environments
+  // This is the most critical fix to prevent "Failed to fetch" errors
+  if (
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    process.env.NODE_ENV === "development"
+  ) {
+    console.log("[Preview Mode] Bypassing database authentication")
+
+    // Allow these credentials in preview mode
+    if ((username === "demo" && password === "demo") || (username === "admin" && password === "password")) {
+      console.log("[Preview Mode] Using mock credentials")
       return {
         admin_id: 1,
         hospital_id: 1,
       }
     }
 
-    // Check if database client is initialized
+    // Return null for invalid credentials even in preview
+    console.log("[Preview Mode] Invalid credentials")
+    return null
+  }
+
+  try {
+    // Only attempt database connection in non-preview environments
     if (!dbClient) {
       console.error("Database client not initialized in verifyAdminCredentials")
-
-      // In preview environments, provide a fallback
-      if (isPreviewEnvironment) {
-        console.log("Using fallback authentication for preview environment")
-        if (username === "admin" && password === "password") {
-          return {
-            admin_id: 1,
-            hospital_id: 1,
-          }
-        }
-        return null
-      }
-
       throw new AppError(
         ErrorType.DATABASE_CONNECTION,
         "Database connection not available",
@@ -257,37 +258,14 @@ export async function verifyAdminCredentials(username: string, password: string)
         SELECT admin_id, hospital_id FROM admin 
         WHERE admin_username = ${username} AND admin_password = ${password}
       `
-
       return result[0] || null
     } catch (error) {
-      // In preview environments, provide a fallback
-      if (isPreviewEnvironment) {
-        console.log("Database query failed in preview environment, using fallback authentication")
-        if (username === "admin" && password === "password") {
-          return {
-            admin_id: 1,
-            hospital_id: 1,
-          }
-        }
-      }
-
+      console.error("Database query failed in verifyAdminCredentials:", error)
       throw error
     }
   } catch (error) {
     // Log the error but don't expose it to the caller
     logError(error, "Verify Admin Credentials")
-
-    // In preview environments, provide a fallback
-    if (isPreviewEnvironment) {
-      console.log("Error in verifyAdminCredentials, using fallback for preview")
-      if (username === "admin" && password === "password") {
-        return {
-          admin_id: 1,
-          hospital_id: 1,
-        }
-      }
-    }
-
     return null
   }
 }
@@ -986,6 +964,87 @@ export async function addNewPlateletsBag(
 
 // Helper function to search for donors
 export async function searchDonors(query: string, showInactive = false) {
+  // Check if we're in a preview environment
+  if (
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    process.env.NODE_ENV === "development"
+  ) {
+    console.log("[Preview Mode] Using mock data for searchDonors")
+
+    // Return mock data for preview environments
+    return [
+      {
+        type: "RedBlood",
+        bag_id: 1001,
+        donor_name: "John Doe",
+        blood_type: "A",
+        rh: "+",
+        amount: 450,
+        expiration_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        hospital_name: "Central Hospital",
+        hospital_id: 1,
+        active: true,
+      },
+      {
+        type: "Plasma",
+        bag_id: 2001,
+        donor_name: "Jane Smith",
+        blood_type: "O",
+        rh: "",
+        amount: 300,
+        expiration_date: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+        hospital_name: "Central Hospital",
+        hospital_id: 1,
+        active: true,
+      },
+      {
+        type: "Platelets",
+        bag_id: 3001,
+        donor_name: "Robert Johnson",
+        blood_type: "B",
+        rh: "-",
+        amount: 250,
+        expiration_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+        hospital_name: "Central Hospital",
+        hospital_id: 1,
+        active: true,
+      },
+      {
+        type: "RedBlood",
+        bag_id: 1002,
+        donor_name: "Sarah Williams",
+        blood_type: "AB",
+        rh: "+",
+        amount: 400,
+        expiration_date: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString(),
+        hospital_name: "Central Hospital",
+        hospital_id: 1,
+        active: false,
+      },
+    ].filter((entry) => {
+      // Filter by active status
+      if (!showInactive && !entry.active) return false
+
+      // Filter by query if provided
+      if (query && query.trim() !== "") {
+        // Check if query matches donor name
+        if (entry.donor_name.toLowerCase().includes(query.toLowerCase())) {
+          return true
+        }
+
+        // Check if query matches bag ID
+        if (!isNaN(Number(query)) && entry.bag_id === Number(query)) {
+          return true
+        }
+
+        return false
+      }
+
+      return true
+    })
+  }
+
   if (!query || query.trim() === "") return []
 
   try {

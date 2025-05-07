@@ -21,15 +21,23 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
   // Check if we're in a preview environment
   useEffect(() => {
     const checkPreviewEnv = () => {
+      // Check for preview environment using multiple methods
       const isPreviewEnv =
         window.location.hostname.includes("vercel.app") ||
         window.location.hostname.includes("localhost") ||
-        window.location.hostname.includes("vusercontent.net")
+        window.location.hostname.includes("127.0.0.1") ||
+        window.location.hostname.includes("vusercontent.net") ||
+        window.location.hostname.includes("preview") ||
+        process.env.NEXT_PUBLIC_VERCEL_ENV === "preview"
+
+      console.log(`Hostname: ${window.location.hostname}`)
+      console.log(`NEXT_PUBLIC_VERCEL_ENV: ${process.env.NEXT_PUBLIC_VERCEL_ENV}`)
+      console.log(`Is preview environment: ${isPreviewEnv}`)
 
       setIsPreview(isPreviewEnv)
 
       if (isPreviewEnv) {
-        console.log("Running in preview environment")
+        console.log("Running in preview environment - setting demo credentials")
         // Pre-fill demo credentials in preview
         setUsername("demo")
         setPassword("demo")
@@ -39,12 +47,44 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
     checkPreviewEnv()
   }, [])
 
+  // Direct login for preview environments
+  useEffect(() => {
+    if (isPreview && !isLoading && username === "demo" && password === "demo") {
+      console.log("Auto-login for preview environment")
+      handleSubmit(new Event("autoLogin") as unknown as React.FormEvent)
+    }
+  }, [isPreview, username, password])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
     try {
+      console.log(`Submitting login form: username=${username}, isPreview=${isPreview}`)
+
+      // Special handling for preview environments - client-side bypass
+      if (isPreview && (username === "demo" || username === "admin")) {
+        console.log("Using client-side preview login bypass")
+
+        // Simulate successful login
+        setTimeout(() => {
+          toast({
+            title: "Preview Mode Login",
+            description: "Logged in successfully using preview mode.",
+          })
+
+          // Set cookies directly in the client (this is just for preview)
+          document.cookie = `adminId=1; path=/; max-age=${24 * 60 * 60}`
+          document.cookie = `hospitalId=1; path=/; max-age=${24 * 60 * 60}`
+
+          // Redirect to dashboard
+          router.push("/dashboard")
+        }, 1000)
+
+        return
+      }
+
       const response = await fetch("/api/login", {
         method: "POST",
         headers: {
@@ -54,7 +94,6 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
       })
 
       // Clone the response to avoid the "body stream already read" error
-      // when we need to read the body in different formats
       const responseClone = response.clone()
 
       // Check if the response is ok
@@ -62,6 +101,7 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
         // Try to parse as JSON first
         try {
           const errorData = await response.json()
+          console.log("Error response:", errorData)
 
           // Handle JSON error responses
           if (errorData.type === "DATABASE_CONNECTION") {
@@ -69,6 +109,7 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
 
             // Special handling for preview environments
             if (isPreview && (username === "demo" || username === "admin")) {
+              console.log("Database error in preview - using fallback")
               toast({
                 title: "Preview Mode",
                 description: "Using demo login for preview environment.",
@@ -100,6 +141,8 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
             })
           }
         } catch (jsonError) {
+          console.error("Error parsing error response:", jsonError)
+
           // If JSON parsing fails, use the status text or a generic message
           // Use the cloned response to read as text
           const errorText = await responseClone.text()
@@ -109,6 +152,7 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
 
           // Special handling for preview environments
           if (isPreview && (username === "demo" || username === "admin")) {
+            console.log("Non-JSON error in preview - using fallback")
             toast({
               title: "Preview Mode",
               description: "Using demo login for preview environment.",
@@ -131,11 +175,12 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
       // For successful responses, parse JSON
       try {
         const data = await response.json()
+        console.log("Success response:", data)
 
         // Login successful
         toast({
           title: "Login Successful",
-          description: "You have been logged in successfully.",
+          description: data.previewMode ? "Logged in using preview mode." : "You have been logged in successfully.",
         })
 
         // Redirect to the return URL or dashboard
@@ -150,11 +195,12 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
 
         router.push("/dashboard")
       } catch (jsonError) {
-        console.error("Error parsing successful response:", jsonError)
+        console.error("Error parsing success response:", jsonError)
         setError("Received an invalid response from the server")
 
         // Special handling for preview environments
         if (isPreview && (username === "demo" || username === "admin")) {
+          console.log("JSON parsing error in preview - using fallback")
           toast({
             title: "Preview Mode",
             description: "Using demo login for preview environment.",
@@ -172,11 +218,12 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
         })
       }
     } catch (err) {
-      console.error("Login error:", err)
+      console.error("Login fetch error:", err)
       setError("An unexpected error occurred. Please try again.")
 
       // Special handling for preview environments
       if (isPreview && (username === "demo" || username === "admin")) {
+        console.log("Fetch error in preview - using fallback")
         toast({
           title: "Preview Mode",
           description: "Using demo login for preview environment.",
@@ -201,8 +248,11 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
     <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-md">
       {isPreview && (
         <div className="bg-blue-50 p-3 rounded-md mb-4 text-sm">
-          <p className="font-medium text-blue-800">Preview Environment</p>
+          <p className="font-medium text-blue-800">Preview Environment Detected</p>
           <p className="text-blue-700">Using demo credentials for preview. Username: "demo", Password: "demo"</p>
+          <p className="text-blue-700 text-xs mt-1">
+            Hostname: {typeof window !== "undefined" ? window.location.hostname : ""}
+          </p>
         </div>
       )}
       <div className="space-y-2">

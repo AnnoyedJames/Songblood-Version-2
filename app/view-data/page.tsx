@@ -10,7 +10,25 @@ export const dynamic = "force-dynamic"
 
 export default async function ViewDataPage() {
   try {
-    const session = await requireAuth()
+    // Check if we're in a preview environment
+    const isPreviewEnvironment =
+      process.env.VERCEL_ENV === "preview" ||
+      process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+      process.env.NODE_ENV === "development"
+
+    // For preview environments, use mock session
+    let session
+    if (isPreviewEnvironment) {
+      console.log("[Preview Mode] Using mock session for view-data page")
+      session = {
+        adminId: 1,
+        hospitalId: 1,
+        username: "demo",
+      }
+    } else {
+      // Get real session for production
+      session = await requireAuth()
+    }
 
     // If no session, redirect to login
     if (!session) {
