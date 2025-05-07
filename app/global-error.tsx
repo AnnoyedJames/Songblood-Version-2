@@ -33,10 +33,12 @@ export default function GlobalError({
                 ? "We're unable to connect to the database at this time. Please try again later."
                 : "A critical error has occurred. Please try refreshing the page."}
             </p>
-            <Button onClick={() => reset()}>Try again</Button>
-            <Button asChild className="ml-4">
-              <Link href="/login">Go to Login</Link>
-            </Button>
+            <div className="flex justify-center gap-4">
+              <Button onClick={() => reset()}>Try again</Button>
+              <Button variant="outline" asChild>
+                <Link href="/login">Go to Login</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </body>

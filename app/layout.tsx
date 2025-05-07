@@ -1,15 +1,17 @@
 import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
-import SessionProvider from "@/components/session-provider"
+import "./globals.css"
+import { Inter } from "next/font/google"
+import { SessionProvider } from "@/components/session-provider"
+import GlobalLogout from "@/components/global-logout"
+import SessionMonitor from "@/components/session-monitor"
+import { AppErrorBoundary } from "@/components/error-boundary"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Songblood Admin Portal",
-  description: "Blood inventory management system for hospitals",
+  description: "Blood Bank Management System",
     generator: 'v0.dev'
 }
 
@@ -22,8 +24,13 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <SessionProvider>
-          {children}
-          <Toaster />
+          <AppErrorBoundary>
+            {/* We'll handle the header in each page instead of the layout */}
+            <main className="container mx-auto px-4 py-8">{children}</main>
+            <GlobalLogout />
+            <SessionMonitor />
+            <Toaster />
+          </AppErrorBoundary>
         </SessionProvider>
       </body>
     </html>

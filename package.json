@@ -87,10 +87,10 @@
     "@op-engineering/op-sqlite": "latest",
     "nprogress": "latest",
     "chart.js": "latest",
-    "react-error-boundary": "latest",
     "fs": "latest",
     "path": "latest",
-    "drizzle-orm": "latest"
+    "drizzle-orm": "latest",
+    "react-error-boundary": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

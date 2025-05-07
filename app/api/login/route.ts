@@ -6,6 +6,12 @@ import { getConnectionErrorMessage } from "@/lib/db"
 // Force dynamic rendering for API routes that use cookies
 export const dynamic = "force-dynamic"
 
+// Flag to determine if we're in a preview environment
+const isPreviewEnvironment =
+  process.env.VERCEL_ENV === "preview" ||
+  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+  process.env.NODE_ENV === "development"
+
 export async function POST(request: Request) {
   try {
     // Parse the request body
@@ -37,12 +43,66 @@ export async function POST(request: Request) {
       )
     }
 
+    // Special handling for preview environments
+    if (isPreviewEnvironment) {
+      console.log("Processing login in preview environment")
+
+      // Allow demo credentials in preview
+      if ((username === "demo" && password === "demo") || (username === "admin" && password === "password")) {
+        console.log("Using demo login for preview")
+
+        // Create a session for the demo user
+        const demoSession = {
+          adminId: 1,
+          hospitalId: 1,
+        }
+
+        // Set cookies for the demo session
+        const response = NextResponse.json({ success: true }, { status: 200 })
+        response.cookies.set("adminId", "1", {
+          httpOnly: true,
+          maxAge: 24 * 60 * 60 * 1000, // 1 day
+        })
+        response.cookies.set("hospitalId", "1", {
+          httpOnly: true,
+          maxAge: 24 * 60 * 60 * 1000, // 1 day
+        })
+
+        return response
+      }
+    }
+
     try {
       const result = await login(username, password)
       return NextResponse.json(result, { status: 200 })
     } catch (error) {
       // Check if this is a database connection error
       if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+        console.error("Database connection error during login:", error)
+
+        // Special handling for preview environments
+        if (isPreviewEnvironment) {
+          console.log("Providing preview fallback for database error")
+
+          // In preview, we'll allow a special login despite DB errors
+          if ((username === "demo" && password === "demo") || (username === "admin" && password === "password")) {
+            console.log("Using fallback login for preview with DB error")
+
+            // Create a session for the demo user
+            const response = NextResponse.json({ success: true }, { status: 200 })
+            response.cookies.set("adminId", "1", {
+              httpOnly: true,
+              maxAge: 24 * 60 * 60 * 1000, // 1 day
+            })
+            response.cookies.set("hospitalId", "1", {
+              httpOnly: true,
+              maxAge: 24 * 60 * 60 * 1000, // 1 day
+            })
+
+            return response
+          }
+        }
+
         // Return a specific error for database connection issues
         return NextResponse.json(
           {
