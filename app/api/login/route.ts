@@ -25,25 +25,59 @@ export async function POST(request: NextRequest) {
       console.log("Database connection check:", dbCheck)
     } catch (dbError) {
       console.error("Database connection error during login:", dbError)
-      return NextResponse.json({ error: "Database connection error. Please try again later." }, { status: 503 })
+      return NextResponse.json(
+        {
+          error: "Database connection error. Please try again later.",
+          details: dbError instanceof Error ? dbError.message : "Unknown database error",
+        },
+        { status: 503 },
+      )
     }
 
     // Check if the admins table exists and has data
     try {
+      const tableExists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'admins'
+        ) as exists
+      `
+
+      if (!tableExists[0].exists) {
+        console.log("Admins table does not exist")
+        return NextResponse.json(
+          {
+            error: "Authentication failed",
+            details: "Database schema is not properly set up. Please initialize the database.",
+          },
+          { status: 500 },
+        )
+      }
+
       const adminCheck = await sql`SELECT COUNT(*) as count FROM admins`
       console.log(`Admin count in database: ${adminCheck[0]?.count || 0}`)
 
-      // If no admins exist, create a default admin for testing
       if (adminCheck[0]?.count === 0) {
-        console.log("No admins found in database, creating default admin")
-        await sql`
-          INSERT INTO admins (username, password_hash, hospital_id) 
-          VALUES ('admin', 'password123', 1)
-        `
-        console.log("Default admin created")
+        console.log("No admins found in database")
+        return NextResponse.json(
+          {
+            error: "Authentication failed",
+            details: "No admin accounts exist in the database. Please initialize a test admin.",
+          },
+          { status: 500 },
+        )
       }
     } catch (tableError) {
       console.error("Error checking admins table:", tableError)
+      return NextResponse.json(
+        {
+          error: "Authentication failed",
+          details:
+            "Error checking database tables: " + (tableError instanceof Error ? tableError.message : "Unknown error"),
+        },
+        { status: 500 },
+      )
     }
 
     // Verify credentials

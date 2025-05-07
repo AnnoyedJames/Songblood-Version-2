@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { AlertCircle, Loader2, Info } from "lucide-react"
 
 export default function LoginForm() {
   const [username, setUsername] = useState("")
@@ -17,12 +17,14 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [detailedError, setDetailedError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setDetailedError(null)
+    setDebugInfo(null)
     setLoading(true)
 
     try {
@@ -42,6 +44,14 @@ export default function LoginForm() {
       // Add debugging to see the response
       console.log("Login response status:", response.status)
       console.log("Login response data:", data)
+
+      // Store debug info
+      setDebugInfo({
+        status: response.status,
+        statusText: response.statusText,
+        data,
+        timestamp: new Date().toISOString(),
+      })
 
       if (!response.ok) {
         // Show a user-friendly error message
@@ -104,10 +114,20 @@ export default function LoginForm() {
             />
           </div>
 
-          {detailedError && process.env.NODE_ENV !== "production" && (
+          {detailedError && (
             <div className="text-xs text-red-500 bg-red-50 p-2 rounded border border-red-200 overflow-auto">
-              <p className="font-semibold">Detailed Error (Debug Only):</p>
+              <p className="font-semibold">Detailed Error:</p>
               <p>{detailedError}</p>
+            </div>
+          )}
+
+          {debugInfo && (
+            <div className="text-xs bg-gray-50 p-2 rounded border border-gray-200 overflow-auto">
+              <p className="font-semibold flex items-center">
+                <Info className="h-3 w-3 mr-1" />
+                Debug Information:
+              </p>
+              <pre className="mt-1 whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
             </div>
           )}
         </CardContent>

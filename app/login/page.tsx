@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import LoginForm from "./login-form"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Database } from "lucide-react"
+import { Database, Wrench } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Login | Blood Bank",
@@ -19,11 +19,17 @@ export default async function LoginPage() {
         </div>
         <LoginForm />
 
-        <div className="text-center mt-4">
+        <div className="text-center mt-4 flex justify-center space-x-4">
           <Button asChild variant="link" size="sm" className="text-gray-500">
             <Link href="/admin/database-status" className="flex items-center justify-center">
               <Database className="h-4 w-4 mr-1" />
-              Check Database Status
+              Database Status
+            </Link>
+          </Button>
+          <Button asChild variant="link" size="sm" className="text-gray-500">
+            <Link href="/admin/auth-diagnostics" className="flex items-center justify-center">
+              <Wrench className="h-4 w-4 mr-1" />
+              Auth Diagnostics
             </Link>
           </Button>
         </div>

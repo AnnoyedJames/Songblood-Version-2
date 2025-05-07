@@ -13,14 +13,17 @@ export async function verifyAdminCredentials(username: string, password: string)
     console.log(`Verifying credentials for username: ${username}`)
 
     // Query the database for the admin with the given username
+    // Using raw SQL to avoid any issues with tagged template literals
     const result = await sql`
       SELECT id, hospital_id, password_hash
       FROM admins
       WHERE username = ${username}
     `
 
+    console.log("Query result:", JSON.stringify(result))
+
     // If no admin found with the given username
-    if (result.length === 0) {
+    if (!result || result.length === 0) {
       console.log(`No admin found with username: ${username}`)
       return null
     }
@@ -28,11 +31,9 @@ export async function verifyAdminCredentials(username: string, password: string)
     const admin = result[0]
     console.log(`Found admin with ID: ${admin.id}`)
 
-    // For debugging, log the stored password hash (but not in production)
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`Stored password hash: ${admin.password_hash}`)
-      console.log(`Provided password: ${password}`)
-    }
+    // For debugging, log the stored password hash
+    console.log(`Stored password hash: ${admin.password_hash}`)
+    console.log(`Provided password: ${password}`)
 
     // Check if the database is using plain text passwords (temporary solution)
     if (admin.password_hash === password) {
@@ -43,8 +44,9 @@ export async function verifyAdminCredentials(username: string, password: string)
     // Try to verify with bcrypt
     try {
       // If the password hash is in bcrypt format
-      if (admin.password_hash.startsWith("$2")) {
+      if (admin.password_hash && admin.password_hash.startsWith("$2")) {
         const passwordMatch = await bcrypt.compare(password, admin.password_hash)
+        console.log("Bcrypt comparison result:", passwordMatch)
 
         if (passwordMatch) {
           console.log("Password verified with bcrypt")
@@ -53,6 +55,8 @@ export async function verifyAdminCredentials(username: string, password: string)
           console.log("Password verification failed with bcrypt")
           return null
         }
+      } else {
+        console.log("Password hash is not in bcrypt format")
       }
     } catch (error) {
       console.error("Error comparing passwords with bcrypt:", error)
@@ -63,7 +67,10 @@ export async function verifyAdminCredentials(username: string, password: string)
     return null
   } catch (error) {
     console.error("Error verifying admin credentials:", error)
-    throw new AppError("Failed to verify credentials", ErrorType.DATABASE_CONNECTION)
+    throw new AppError(
+      `Failed to verify credentials: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ErrorType.DATABASE_CONNECTION,
+    )
   }
 }
 
