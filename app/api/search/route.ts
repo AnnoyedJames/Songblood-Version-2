@@ -2,12 +2,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { searchDonors } from "@/lib/db"
 import { requireAuth } from "@/lib/auth"
 import { AppError, ErrorType } from "@/lib/error-handling"
+import { isPreviewEnvironment } from "@/lib/env-utils"
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
-    const session = await requireAuth()
-
     // Get query parameters
     const url = new URL(request.url)
     const query = url.searchParams.get("query") || ""
@@ -17,13 +15,7 @@ export async function GET(request: NextRequest) {
     console.log(`Search request: query="${query}", showInactive=${showInactive}`)
 
     // Check if we're in a preview environment
-    const isPreviewEnvironment =
-      process.env.VERCEL_ENV === "preview" ||
-      process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
-      process.env.NODE_ENV === "development"
-
-    // For preview environments, return mock data
-    if (isPreviewEnvironment) {
+    if (isPreviewEnvironment()) {
       console.log("Using mock data for search in preview environment")
 
       // Create mock data based on the query
@@ -82,6 +74,7 @@ export async function GET(request: NextRequest) {
       const filteredMockData = mockData.filter((entry) => {
         // Filter by active status
         if (!showInactive && !entry.active) return false
+        if (showInactive && entry.active) return false
 
         // Filter by query
         if (query && !entry.donor_name.toLowerCase().includes(query.toLowerCase())) {
@@ -97,6 +90,9 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({ results: filteredMockData })
     }
+
+    // Check authentication for non-preview environments
+    await requireAuth()
 
     // Search for donors
     const results = await searchDonors(query, showInactive)

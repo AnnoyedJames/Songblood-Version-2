@@ -1,63 +1,47 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type ConfirmationDialogProps = {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: () => void
   title: string
   description: string
-  actionLabel: string
-  onConfirm: () => void
-  trigger?: React.ReactNode
+  confirmText?: string
+  cancelText?: string
 }
 
-export function ConfirmationDialog({ title, description, actionLabel, onConfirm, trigger }: ConfirmationDialogProps) {
-  const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleConfirm = async () => {
-    setIsLoading(true)
-    try {
-      await onConfirm()
-    } catch (error) {
-      console.error("Error in confirmation action:", error)
-    } finally {
-      setIsLoading(false)
-      setOpen(false)
-    }
-  }
-
+export default function ConfirmationDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  description,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+}: ConfirmationDialogProps) {
   return (
-    <>
-      {trigger && <div onClick={() => setOpen(true)}>{trigger}</div>}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirm} disabled={isLoading}>
-              {isLoading ? "Processing..." : actionLabel}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <AlertDialog open={isOpen} onOpenChange={onClose}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{confirmText}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
-
-export default ConfirmationDialog

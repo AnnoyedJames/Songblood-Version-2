@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import { sql } from "@/lib/db"
+import { isPreviewEnvironment } from "@/lib/env-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,12 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if we're in a preview environment
-    const isPreviewEnvironment =
-      process.env.VERCEL_ENV === "preview" ||
-      process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
-      process.env.NODE_ENV === "development"
-
-    if (isPreviewEnvironment) {
+    if (isPreviewEnvironment()) {
       console.log("[Preview Mode] Simulating soft delete:", { bagId, entryType })
 
       // Return success for preview environments

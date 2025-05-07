@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -13,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 
 type EditEntryDialogProps = {
@@ -22,7 +22,7 @@ type EditEntryDialogProps = {
   onSave: (updatedEntry: any) => Promise<{ success: boolean; message?: string }>
 }
 
-export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntryDialogProps) {
+export default function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntryDialogProps) {
   const [formData, setFormData] = useState({
     ...entry,
     // Convert date string to YYYY-MM-DD format for the date input
@@ -155,5 +155,3 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
     </Dialog>
   )
 }
-
-export default EditEntryDialog

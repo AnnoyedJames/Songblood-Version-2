@@ -1,32 +1,36 @@
+import { Suspense } from "react"
+import type { Metadata } from "next"
 import { requireAuth } from "@/lib/auth"
 import Header from "@/components/header"
 import { redirect } from "next/navigation"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import DatabaseError from "@/components/database-error"
 import ViewDataTabs from "./view-data-tabs"
+import { isPreviewEnvironment } from "@/lib/env-utils"
+import ErrorBoundary from "@/components/error-boundary"
+
+export const metadata: Metadata = {
+  title: "View Data | Blood Bank",
+  description: "View and manage blood inventory data",
+}
 
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
 
 export default async function ViewDataPage() {
   try {
-    // Check if we're in a preview environment
-    const isPreviewEnvironment =
-      process.env.VERCEL_ENV === "preview" ||
-      process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
-      process.env.NODE_ENV === "development"
-
-    // For preview environments, use mock session
+    // Get session data or use mock data in preview environments
     let session
-    if (isPreviewEnvironment) {
+
+    if (isPreviewEnvironment()) {
       console.log("[Preview Mode] Using mock session for view-data page")
       session = {
         adminId: 1,
         hospitalId: 1,
         username: "demo",
+        isLoggedIn: true,
       }
     } else {
-      // Get real session for production
       session = await requireAuth()
     }
 
@@ -45,7 +49,11 @@ export default async function ViewDataPage() {
           <h1 className="text-2xl font-bold mb-6">View Data</h1>
 
           <div className="max-w-6xl mx-auto">
-            <ViewDataTabs hospitalId={hospitalId} />
+            <ErrorBoundary>
+              <Suspense fallback={<div className="text-center py-8">Loading data...</div>}>
+                <ViewDataTabs hospitalId={hospitalId} />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

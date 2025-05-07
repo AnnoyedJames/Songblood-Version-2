@@ -1,35 +1,42 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+/**
+ * Combines class names using clsx and tailwind-merge
+ */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatBloodType(bloodType: string, rh?: string): string {
-  return `${bloodType}${rh || ""}`
-}
+/**
+ * Formats a blood type with Rh factor
+ */
+export function formatBloodType(bloodType: string, rhFactor?: string): string {
+  if (!bloodType) return ""
 
-export function getBloodTypeColor(bloodType: string, rh?: string): string {
-  switch (bloodType) {
-    case "A":
-      return "bg-green-100 text-green-800"
-    case "B":
-      return "bg-blue-100 text-blue-800"
-    case "AB":
-      return "bg-purple-100 text-purple-800"
-    case "O":
-      return "bg-orange-100 text-orange-800"
-    default:
-      return "bg-gray-100 text-gray-800"
+  if (rhFactor) {
+    return `${bloodType}${rhFactor}`
   }
+
+  return bloodType
 }
 
-export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date)
+/**
+ * Formats a date to a readable string
+ */
+export function formatDate(date: string | Date): string {
+  if (!date) return ""
+
+  const d = new Date(date)
+  return d.toLocaleDateString()
+}
+
+/**
+ * Truncates a string to a specified length
+ */
+export function truncate(str: string, length: number): string {
+  if (!str) return ""
+  if (str.length <= length) return str
+
+  return str.slice(0, length) + "..."
 }
