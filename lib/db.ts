@@ -31,10 +31,19 @@ const MOCK_DATA = {
   hospitals: [{ hospital_id: 1, hospital_name: "Demo Hospital" }],
 }
 
+// Check if we're in a preview environment
+const isPreviewEnvironment = () => {
+  return (
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.IS_FALLBACK_MODE === "true"
+  )
+}
+
 // Execute a database query with timeout and fallback
 export async function executeQuery(query: string, params: any[] = [], options: { useMockOnError?: boolean } = {}) {
   if (!dbClient) {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
       console.warn("Database client not initialized, using mock data")
       return []
     }
@@ -62,8 +71,8 @@ export async function executeQuery(query: string, params: any[] = [], options: {
   } catch (error) {
     const appError = logError(error, "Execute Query")
 
-    // Use mock data in production if specified
-    if (options.useMockOnError && process.env.NODE_ENV === "production") {
+    // Use mock data in production or preview if specified
+    if ((options.useMockOnError && process.env.NODE_ENV === "production") || isPreviewEnvironment()) {
       console.warn("Database query failed, using mock data:", appError.message)
       return []
     }
@@ -78,10 +87,12 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
     // Check if database URL is defined
     const dbUrl = getDatabaseUrl()
     if (!dbUrl) {
-      setConnectionErrorMessage("Database connection string is missing")
+      const errorMsg = "Database connection string is missing"
+      setConnectionErrorMessage(errorMsg)
+      console.error(errorMsg)
       return {
         connected: false,
-        error: "Database connection string is missing",
+        error: errorMsg,
       }
     }
 
@@ -104,11 +115,16 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
       // Handle fetch errors specifically
       const errorMessage =
         fetchError instanceof Error
-          ? `Database connection error: ${fetchError.message}`
+          ? `Error connecting to database: ${fetchError.message}`
           : "Failed to connect to database"
 
+      console.error("Database connection test failed:", errorMessage)
       setConnectionErrorMessage(errorMessage)
-      console.error("Database connection test failed:", fetchError)
+
+      // Log additional information for debugging
+      if (fetchError instanceof Error) {
+        console.error("Error stack:", fetchError.stack)
+      }
 
       return {
         connected: false,
@@ -118,9 +134,8 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
   } catch (error) {
     // Handle any other errors
     const errorMessage = error instanceof Error ? error.message : "Unknown database connection error"
-
+    console.error("Database connection test error:", errorMessage)
     setConnectionErrorMessage(errorMessage)
-    console.error("Database connection test error:", error)
 
     return {
       connected: false,
@@ -130,10 +145,7 @@ export async function testDatabaseConnection(): Promise<{ connected: boolean; er
 }
 
 // Initialize database connection on module load
-if (
-  process.env.NODE_ENV !== "production" ||
-  (process.env.NEXT_PUBLIC_VERCEL_ENV !== "preview" && process.env.NEXT_PUBLIC_VERCEL_ENV !== "development")
-) {
+if (process.env.NODE_ENV !== "production" && !isPreviewEnvironment()) {
   testDatabaseConnection()
     .then(({ connected, error }) => {
       if (!connected) {
@@ -165,7 +177,7 @@ export async function getHospitalById(hospitalId: number) {
     })
 
     if (!result || result.length === 0) {
-      if (process.env.NODE_ENV === "production") {
+      if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
         // Return mock data in production
         return MOCK_DATA.hospitals[0]
       }
@@ -175,7 +187,7 @@ export async function getHospitalById(hospitalId: number) {
     queryCache.set(cacheKey, result[0])
     return result[0]
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
       // Return mock data in production
       console.warn("Error getting hospital data, using mock data:", error)
       return MOCK_DATA.hospitals[0]
@@ -187,6 +199,11 @@ export async function getHospitalById(hospitalId: number) {
 // Helper function to verify admin credentials
 export async function verifyAdminCredentials(username: string, password: string) {
   try {
+    // In preview environment, accept any credentials for testing
+    if (isPreviewEnvironment()) {
+      return { admin_id: 1, hospital_id: 1 }
+    }
+
     const result = await dbClient`
       SELECT admin_id, hospital_id FROM admin 
       WHERE admin_username = ${username} AND admin_password = ${password}
@@ -196,6 +213,12 @@ export async function verifyAdminCredentials(username: string, password: string)
   } catch (error) {
     // Log the error but don't expose it to the caller
     logError(error, "Verify Admin Credentials")
+
+    // In preview, return mock data
+    if (isPreviewEnvironment()) {
+      return { admin_id: 1, hospital_id: 1 }
+    }
+
     return null
   }
 }

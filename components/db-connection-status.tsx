@@ -1,18 +1,38 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 
 export default function DbConnectionStatus() {
   const [status, setStatus] = useState<"loading" | "connected" | "error">("loading")
   const [message, setMessage] = useState<string>("")
-  const [showSuccess, setShowSuccess] = useState(false); // Initialize to false
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetch("/api/db-status")
+        const response = await fetch("/api/db-status", {
+          // Add cache: 'no-store' to prevent caching
+          cache: "no-store",
+          // Add a timestamp to prevent caching
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+            "X-Timestamp": Date.now().toString(),
+          },
+        })
+
+        // Check if the response is ok
+        if (!response.ok) {
+          console.error("DB status API returned error:", response.status, response.statusText)
+          setStatus("error")
+          setMessage(`API error: ${response.status} ${response.statusText}`)
+          return
+        }
+
         const data = await response.json()
+        console.log("DB status response:", data)
 
         if (data.connected) {
           setStatus("connected")
@@ -20,28 +40,34 @@ export default function DbConnectionStatus() {
         } else {
           setStatus("error")
           setMessage(data.message || "Unable to connect to database")
+          console.warn("Database connection failed:", data.message)
         }
       } catch (error) {
-        setStatus("error")
-        setMessage("Error checking database connection")
         console.error("Error checking DB status:", error)
+        setStatus("error")
+        setMessage(error instanceof Error ? `Error: ${error.message}` : "Error checking database connection")
       }
     }
 
     checkConnection()
-  }, [])
+  }, [retryCount])
 
   useEffect(() => {
     if (status === "connected") {
-      setShowSuccess(true);
+      setShowSuccess(true)
       const timer = setTimeout(() => {
-        setShowSuccess(false);
-      }, 3000);
-      return () => clearTimeout(timer);
+        setShowSuccess(false)
+      }, 3000)
+      return () => clearTimeout(timer)
     } else {
-      setShowSuccess(false); // Reset showSuccess when status is not "connected"
+      setShowSuccess(false)
     }
-  }, [status]);
+  }, [status])
+
+  const handleRetry = () => {
+    setStatus("loading")
+    setRetryCount((prev) => prev + 1)
+  }
 
   if (status === "loading") {
     return (
@@ -56,7 +82,13 @@ export default function DbConnectionStatus() {
     return (
       <div className="flex items-center p-3 bg-red-50 text-red-700 rounded-md mb-4 border border-red-200">
         <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-        <div className="text-sm">{message}</div>
+        <div className="text-sm flex-grow">{message}</div>
+        <button
+          onClick={handleRetry}
+          className="ml-2 text-xs bg-red-100 hover:bg-red-200 text-red-800 px-2 py-1 rounded"
+        >
+          Retry
+        </button>
       </div>
     )
   }
