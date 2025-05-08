@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { useSession } from "@/components/session-provider"
+import { useSession } from "./session-provider"
 
 export default function GlobalLogout() {
   const router = useRouter()

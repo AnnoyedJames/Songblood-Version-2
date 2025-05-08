@@ -1,248 +1,137 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
+import { useSession } from "@/components/session-provider"
 
-type SessionTimeoutOptions = {
-  timeoutMinutes?: number
-  warningMinutes?: number
-  onTimeout?: () => void
-  onWarning?: () => void
-  onActivity?: () => void
-  enabled?: boolean
-  preserveFormData?: boolean
-}
+// Session timeout in milliseconds (30 minutes)
+const SESSION_TIMEOUT = 30 * 60 * 1000
 
-export function useSessionTimeout({
-  timeoutMinutes = 60, // Extended from 30 to 60 minutes
-  warningMinutes = 5,
-  onTimeout,
-  onWarning,
-  onActivity,
-  enabled = true,
-  preserveFormData = true,
-}: SessionTimeoutOptions = {}) {
+export function useSessionTimeout() {
+  const [lastActivity, setLastActivity] = useState<number>(Date.now())
+  const [showWarning, setShowWarning] = useState<boolean>(false)
+  const [remainingTime, setRemainingTime] = useState<number>(SESSION_TIMEOUT)
+  const [keepMeLoggedIn, setKeepMeLoggedIn] = useState<boolean>(false)
   const router = useRouter()
   const { toast } = useToast()
-  const [warningShown, setWarningShown] = useState(false)
-  const [lastActivity, setLastActivity] = useState(Date.now())
-  const [warningToastId, setWarningToastId] = useState<string | null>(null)
-
-  // Convert minutes to milliseconds
-  const timeoutMs = timeoutMinutes * 60 * 1000
-  const warningMs = warningMinutes * 60 * 1000
+  const { isAuthenticated, setIsAuthenticated } = useSession()
 
   // Reset the timer when there's user activity
-  const resetTimer = useCallback(() => {
-    setLastActivity(Date.now())
-    if (warningShown) {
-      setWarningShown(false)
-      // Dismiss the warning toast if it exists
-      if (warningToastId) {
-        toast.dismiss(warningToastId)
-        setWarningToastId(null)
-      }
+  const resetTimer = () => {
+    if (!keepMeLoggedIn) {
+      setLastActivity(Date.now())
+      setShowWarning(false)
     }
-    if (onActivity) onActivity()
-  }, [warningShown, warningToastId, toast, onActivity])
+  }
 
-  // Function to save form data before redirecting
-  const saveFormData = useCallback(
-    (formId: string) => {
-      if (!preserveFormData) return
-
-      try {
-        // Find all form elements on the page
-        const forms = document.querySelectorAll(`form${formId ? `#${formId}` : ""}`)
-
-        forms.forEach((form, formIndex) => {
-          const formData: Record<string, any> = {}
-          const formElements = form.elements
-
-          // Extract data from form elements
-          for (let i = 0; i < formElements.length; i++) {
-            const element = formElements[i] as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-            if (element.name && element.value !== undefined) {
-              formData[element.name] = element.value
-            }
-          }
-
-          // Save form data to sessionStorage with a unique key
-          const pageIdentifier = window.location.pathname.replace(/\//g, "_")
-          const storageKey = `formData_${pageIdentifier}_${formId || formIndex}`
-          sessionStorage.setItem(
-            storageKey,
-            JSON.stringify({
-              timestamp: Date.now(),
-              data: formData,
-              url: window.location.href,
-            }),
-          )
-        })
-      } catch (error) {
-        console.error("Error saving form data:", error)
-      }
-    },
-    [preserveFormData],
-  )
-
-  // Function to handle session expiration
-  const handleSessionExpiration = useCallback(() => {
-    if (onTimeout) onTimeout()
-
-    // Save any form data before redirecting
-    saveFormData("")
-
-    toast({
-      title: "Session expired",
-      description: "You have been logged out due to inactivity. Please log in again to continue.",
-      variant: "destructive",
-      duration: 5000,
-    })
-
-    // Perform logout
-    fetch("/api/logout", {
-      method: "POST",
-      credentials: "include",
-    }).finally(() => {
-      // Redirect with context about the page they were on
-      const currentPath = encodeURIComponent(window.location.pathname + window.location.search)
-      router.push(`/login?reason=session-timeout&returnTo=${currentPath}`)
-    })
-  }, [onTimeout, saveFormData, toast, router])
-
-  // Function to check session validity with the server
-  const checkServerSession = useCallback(async (): Promise<boolean> => {
-    try {
-      const response = await fetch("/api/check-session", {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      })
-
-      if (!response.ok) return false
-
-      const data = await response.json()
-      return data.authenticated === true
-    } catch (error) {
-      console.error("Error checking session validity:", error)
-      return false
-    }
-  }, [])
-
+  // Handle user activity events
   useEffect(() => {
-    if (!enabled) return
+    if (!isAuthenticated) return
 
-    // Set up event listeners for user activity
-    const activityEvents = [
-      "mousedown",
-      "mousemove",
-      "keypress",
-      "scroll",
-      "touchstart",
-      "click",
-      "keydown",
-      "focus",
-      "input",
-      "change",
-    ]
+    const events = ["mousedown", "keypress", "scroll", "touchstart", "mousemove"]
 
     const handleActivity = () => {
       resetTimer()
     }
 
-    activityEvents.forEach((event) => {
-      window.addEventListener(event, handleActivity, { passive: true })
+    events.forEach((event) => {
+      window.addEventListener(event, handleActivity)
     })
 
-    // Check for inactivity
-    const interval = setInterval(async () => {
+    return () => {
+      events.forEach((event) => {
+        window.removeEventListener(event, handleActivity)
+      })
+    }
+  }, [isAuthenticated, keepMeLoggedIn])
+
+  // Check for session timeout
+  useEffect(() => {
+    if (!isAuthenticated || keepMeLoggedIn) return
+
+    const warningTime = 5 * 60 * 1000 // 5 minutes before timeout
+    const interval = setInterval(() => {
       const now = Date.now()
-      const elapsed = now - lastActivity
+      const timeSinceLastActivity = now - lastActivity
+      const timeRemaining = SESSION_TIMEOUT - timeSinceLastActivity
 
-      // Show warning before timeout
-      if (elapsed > timeoutMs - warningMs && !warningShown) {
-        setWarningShown(true)
+      setRemainingTime(Math.max(0, timeRemaining))
 
-        // Check with server if session is still valid
-        const isSessionValid = await checkServerSession()
-
-        if (!isSessionValid) {
-          // Session already expired on server
-          handleSessionExpiration()
-          clearInterval(interval)
-          return
-        }
-
-        // Show warning toast
-        const id = toast({
+      // Show warning 5 minutes before timeout
+      if (timeRemaining <= warningTime && timeRemaining > 0 && !showWarning) {
+        setShowWarning(true)
+        toast({
           title: "Session expiring soon",
-          description: `Your session will expire in ${warningMinutes} minutes due to inactivity. Click anywhere to stay logged in.`,
-          variant: "warning",
-          duration: warningMs,
-          action: (
-            <button
-              onClick={resetTimer}
-              className="bg-white text-black px-3 py-1 rounded-md hover:bg-gray-200 transition-colors"
-            >
-              Keep me logged in
-            </button>
-          ),
-        }).id
-
-        setWarningToastId(id)
-
-        if (onWarning) onWarning()
+          description: "Your session will expire soon due to inactivity. Please continue working to stay logged in.",
+          duration: 10000,
+        })
       }
 
-      // Timeout - log the user out
-      if (elapsed > timeoutMs) {
-        handleSessionExpiration()
+      // Logout if session has timed out
+      if (timeRemaining <= 0) {
         clearInterval(interval)
+        handleTimeout()
       }
     }, 10000) // Check every 10 seconds
 
-    // Periodically check server-side session validity (every 2 minutes)
-    const serverCheckInterval = setInterval(async () => {
-      const isSessionValid = await checkServerSession()
+    return () => clearInterval(interval)
+  }, [isAuthenticated, lastActivity, showWarning, keepMeLoggedIn])
 
-      if (!isSessionValid) {
-        handleSessionExpiration()
-        clearInterval(interval)
-        clearInterval(serverCheckInterval)
-      }
-    }, 120000)
+  // Handle session timeout
+  const handleTimeout = () => {
+    setIsAuthenticated(false)
+    toast({
+      title: "Session expired",
+      description: "Your session has expired due to inactivity. Please log in again.",
+      variant: "destructive",
+    })
+    router.push("/login?reason=session-timeout")
+  }
 
-    // Clean up
-    return () => {
-      activityEvents.forEach((event) => {
-        window.removeEventListener(event, handleActivity)
-      })
-      clearInterval(interval)
-      clearInterval(serverCheckInterval)
-    }
-  }, [
-    lastActivity,
-    timeoutMs,
-    warningMs,
-    warningShown,
-    resetTimer,
-    handleSessionExpiration,
-    checkServerSession,
-    toast,
-    onWarning,
-    enabled,
-  ])
+  // Format remaining time for display
+  const formatRemainingTime = () => {
+    const minutes = Math.floor(remainingTime / 60000)
+    const seconds = Math.floor((remainingTime % 60000) / 1000)
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`
+  }
 
   return {
+    showWarning,
+    remainingTime: formatRemainingTime(),
     resetTimer,
-    timeRemaining: Math.max(0, timeoutMs - (Date.now() - lastActivity)),
-    isWarning: warningShown,
-    saveFormData,
+    keepMeLoggedIn,
+    setKeepMeLoggedIn,
   }
+}
+
+export function SessionTimeoutWarning() {
+  const { showWarning, remainingTime, keepMeLoggedIn, setKeepMeLoggedIn } = useSessionTimeout()
+
+  if (!showWarning) return null
+
+  return (
+    <div className="fixed bottom-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded shadow-lg z-50">
+      <div className="flex items-center">
+        <div className="py-1">
+          <p className="font-bold">Session Expiring</p>
+          <p className="text-sm">
+            Your session will expire in {remainingTime}. Continue using the application to stay logged in.
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center">
+        <input
+          type="checkbox"
+          id="keep-logged-in"
+          checked={keepMeLoggedIn}
+          onChange={(e) => setKeepMeLoggedIn(e.target.checked)}
+          className="mr-2"
+        />
+        <label htmlFor="keep-logged-in" className="text-sm">
+          Keep me logged in
+        </label>
+      </div>
+    </div>
+  )
 }
