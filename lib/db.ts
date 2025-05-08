@@ -268,8 +268,17 @@ export async function getPlasmaInventory(hospitalId: number) {
       ORDER BY blood_type
     `
 
-    queryCache.set(cacheKey, plasma)
-    return plasma
+    // Ensure numeric values are properly parsed
+    const processedData = plasma.map((item) => ({
+      ...item,
+      count: Number(item.count),
+      total_amount: Number(item.total_amount),
+    }))
+
+    console.log("Retrieved plasma data from DB:", processedData)
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
   } catch (error) {
     throw logError(error, "Get Plasma Inventory")
   }
@@ -294,8 +303,17 @@ export async function getPlateletsInventory(hospitalId: number) {
       ORDER BY blood_type, rh
     `
 
-    queryCache.set(cacheKey, platelets)
-    return platelets
+    // Ensure numeric values are properly parsed
+    const processedData = platelets.map((item) => ({
+      ...item,
+      count: Number(item.count),
+      total_amount: Number(item.total_amount),
+    }))
+
+    console.log("Retrieved platelets data from DB:", processedData)
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
   } catch (error) {
     throw logError(error, "Get Platelets Inventory")
   }

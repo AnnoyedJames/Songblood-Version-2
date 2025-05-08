@@ -178,6 +178,35 @@ export async function updateBloodEntry({
   hospitalId,
 }: UpdateBloodEntryParams) {
   try {
+    // Input validation
+    if (!bagId || isNaN(bagId)) {
+      return {
+        success: false,
+        error: "Invalid bag ID",
+      }
+    }
+
+    if (!donorName || donorName.trim() === "") {
+      return {
+        success: false,
+        error: "Donor name is required",
+      }
+    }
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return {
+        success: false,
+        error: "Amount must be a positive number",
+      }
+    }
+
+    if (!expirationDate) {
+      return {
+        success: false,
+        error: "Expiration date is required",
+      }
+    }
+
     // Verify that the entry belongs to the hospital
     const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
     if (!ownershipCheck.success) {
@@ -185,7 +214,15 @@ export async function updateBloodEntry({
     }
 
     // Format the expiration date
-    const formattedDate = new Date(expirationDate).toISOString().split("T")[0]
+    let formattedDate
+    try {
+      formattedDate = new Date(expirationDate).toISOString().split("T")[0]
+    } catch (e) {
+      return {
+        success: false,
+        error: "Invalid expiration date format",
+      }
+    }
 
     // Update the entry based on its type
     let result
@@ -194,7 +231,7 @@ export async function updateBloodEntry({
         UPDATE redblood_inventory
         SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId} AND active = true
-        RETURNING bag_id
+        RETURNING bag_id, donor_name, amount, expiration_date
       `
       // Invalidate cache
       queryCache.invalidate(`redblood:${hospitalId}`)
@@ -203,7 +240,7 @@ export async function updateBloodEntry({
         UPDATE plasma_inventory
         SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId} AND active = true
-        RETURNING bag_id
+        RETURNING bag_id, donor_name, amount, expiration_date
       `
       // Invalidate cache
       queryCache.invalidate(`plasma:${hospitalId}`)
@@ -212,7 +249,7 @@ export async function updateBloodEntry({
         UPDATE platelets_inventory
         SET donor_name = ${donorName}, amount = ${amount}, expiration_date = ${formattedDate}::date
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId} AND active = true
-        RETURNING bag_id
+        RETURNING bag_id, donor_name, amount, expiration_date
       `
       // Invalidate cache
       queryCache.invalidate(`platelets:${hospitalId}`)
@@ -224,11 +261,14 @@ export async function updateBloodEntry({
     }
 
     if (result && result.length > 0) {
-      return { success: true }
+      return {
+        success: true,
+        updatedEntry: result[0],
+      }
     } else {
       return {
         success: false,
-        error: "Failed to update entry",
+        error: "Failed to update entry. The entry may not exist or you don't have permission to modify it.",
       }
     }
   } catch (error) {

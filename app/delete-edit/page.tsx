@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth"
 import Header from "@/components/header"
-import DonorSearchForm from "./donor-search-form"
+import DeleteEditContent from "@/components/delete-edit-content"
 import { redirect } from "next/navigation"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import DatabaseError from "@/components/database-error"
@@ -8,7 +8,7 @@ import DatabaseError from "@/components/database-error"
 // Force dynamic rendering since we're using cookies
 export const dynamic = "force-dynamic"
 
-export default async function DonorSearchPage() {
+export default async function DeleteEditPage() {
   try {
     const session = await requireAuth()
 
@@ -24,16 +24,16 @@ export default async function DonorSearchPage() {
         <Header hospitalId={hospitalId} />
 
         <main className="flex-1 container py-6 px-4 md:py-8">
-          <h1 className="text-2xl font-bold mb-6">Donor Search</h1>
+          <h1 className="text-2xl font-bold mb-6">Delete/Edit Inventory</h1>
 
-          <div className="max-w-4xl mx-auto">
-            <DonorSearchForm />
+          <div className="max-w-6xl mx-auto">
+            <DeleteEditContent />
           </div>
         </main>
       </div>
     )
   } catch (error) {
-    console.error("Donor search page error:", error)
+    console.error("Delete/Edit page error:", error)
 
     // If the error is a redirect, let it happen
     if (error instanceof Error && error.message.includes("NEXT_REDIRECT")) {
@@ -41,8 +41,12 @@ export default async function DonorSearchPage() {
     }
 
     // Handle database connection errors
-    if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
-      return <DatabaseError message="Unable to load donor search. Database connection failed." />
+    if (error instanceof AppError) {
+      if (error.type === ErrorType.DATABASE_CONNECTION) {
+        return <DatabaseError message="Unable to load inventory management. Database connection failed." />
+      } else if (error.type === ErrorType.DATABASE_QUERY) {
+        return <DatabaseError message="Unable to load inventory management. Database query failed." />
+      }
     }
 
     // Return a simple error message for other errors

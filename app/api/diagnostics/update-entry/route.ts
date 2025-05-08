@@ -22,6 +22,26 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid entry data" }, { status: 400 })
     }
 
+    // Additional validation
+    if (!entry.donor_name || entry.donor_name.trim() === "") {
+      return NextResponse.json({ success: false, error: "Donor name is required" }, { status: 400 })
+    }
+
+    if (!entry.amount || isNaN(entry.amount) || entry.amount <= 0) {
+      return NextResponse.json({ success: false, error: "Amount must be a positive number" }, { status: 400 })
+    }
+
+    if (!entry.expiration_date) {
+      return NextResponse.json({ success: false, error: "Expiration date is required" }, { status: 400 })
+    }
+
+    try {
+      // Validate expiration date format
+      new Date(entry.expiration_date)
+    } catch (e) {
+      return NextResponse.json({ success: false, error: "Invalid expiration date format" }, { status: 400 })
+    }
+
     // Update the entry
     const result = await updateBloodEntry({
       bagId: entry.bag_id,
@@ -33,9 +53,20 @@ export async function PUT(request: NextRequest) {
     })
 
     if (result.success) {
-      return NextResponse.json({ success: true })
+      return NextResponse.json({
+        success: true,
+        message: "Entry updated successfully",
+        bagId: entry.bag_id,
+      })
     } else {
-      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error,
+          details: result.details || "Failed to update the entry in the database",
+        },
+        { status: 400 },
+      )
     }
   } catch (error) {
     console.error("Error updating blood entry:", error)

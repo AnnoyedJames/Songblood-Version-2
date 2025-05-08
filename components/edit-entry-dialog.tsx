@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -39,9 +39,9 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Update form data when entry changes
-  useState(() => {
+  useEffect(() => {
     setFormData(entry)
-  })
+  }, [entry])
 
   if (!entry || !formData) return null
 
@@ -51,7 +51,7 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
       if (!prev) return prev
       return {
         ...prev,
-        [name]: name === "amount" ? Number.parseInt(value) || 0 : value,
+        [name]: name === "amount" ? Math.max(1, Number.parseInt(value) || 0) : value,
       }
     })
   }
