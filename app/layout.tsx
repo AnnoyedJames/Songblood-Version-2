@@ -1,7 +1,6 @@
 import type React from "react"
 import "./globals.css"
 import { Inter } from "next/font/google"
-import { Toaster } from "@/components/ui/toast"
 import SessionProvider from "@/components/session-provider"
 import GlobalLogout from "@/components/global-logout"
 import SessionMonitor from "@/components/session-monitor"
@@ -22,7 +21,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <GlobalLogout />
           <SessionMonitor />
           {children}
-          <Toaster />
         </SessionProvider>
       </body>
     </html>

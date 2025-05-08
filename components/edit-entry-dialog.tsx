@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 import { formatBloodType } from "@/lib/utils"
 
 interface BloodEntry {
@@ -35,9 +34,9 @@ interface EditEntryDialogProps {
 }
 
 export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntryDialogProps) {
-  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<BloodEntry | null>(entry)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Update form data when entry changes
   useState(() => {
@@ -63,28 +62,17 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
 
     try {
       setIsLoading(true)
+      setErrorMessage(null)
       const result = await onSave(formData)
 
       if (result.success) {
-        toast({
-          title: "Entry updated",
-          description: "The blood entry has been successfully updated.",
-        })
         onOpenChange(false)
       } else {
-        toast({
-          variant: "destructive",
-          title: "Update failed",
-          description: result.message || "Failed to update the entry. Please try again.",
-        })
+        setErrorMessage(result.message || "Failed to update the entry. Please try again.")
       }
     } catch (error) {
       console.error("Error updating entry:", error)
-      toast({
-        variant: "destructive",
-        title: "Update failed",
-        description: "An unexpected error occurred. Please try again.",
-      })
+      setErrorMessage("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -100,6 +88,7 @@ export function EditEntryDialog({ entry, open, onOpenChange, onSave }: EditEntry
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
+          {errorMessage && <div className="bg-red-50 text-red-800 p-3 rounded-md mb-4 text-sm">{errorMessage}</div>}
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="donor_name" className="text-right">

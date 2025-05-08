@@ -336,7 +336,8 @@ export async function getSurplusAlerts(hospitalId: number) {
         if (type === "RedBlood") {
           // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
-            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
+            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count, 
+                   h.hospital_contact_phone, h.hospital_contact_mail
             FROM redblood_inventory rb
             JOIN hospital h ON rb.hospital_id = h.hospital_id
             WHERE rb.hospital_id != ${hospitalId}
@@ -344,28 +345,30 @@ export async function getSurplusAlerts(hospitalId: number) {
               AND rb.rh = ${rh}
               AND rb.expiration_date > CURRENT_DATE
               AND rb.active = true
-            GROUP BY h.hospital_id, h.hospital_name
+            GROUP BY h.hospital_id, h.hospital_name, h.hospital_contact_phone, h.hospital_contact_mail
             HAVING COUNT(*) > 10
             ORDER BY count DESC
           `
         } else if (type === "Plasma") {
           // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
-            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
+            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count,
+                   h.hospital_contact_phone, h.hospital_contact_mail
             FROM plasma_inventory p
             JOIN hospital h ON p.hospital_id = h.hospital_id
             WHERE p.hospital_id != ${hospitalId}
               AND p.blood_type = ${blood_type}
               AND p.expiration_date > CURRENT_DATE
               AND p.active = true
-            GROUP BY h.hospital_id, h.hospital_name
+            GROUP BY h.hospital_id, h.hospital_name, h.hospital_contact_phone, h.hospital_contact_mail
             HAVING COUNT(*) > 10
             ORDER BY count DESC
           `
         } else if (type === "Platelets") {
           // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
-            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count
+            SELECT h.hospital_id, h.hospital_name, COUNT(*) as count,
+                   h.hospital_contact_phone, h.hospital_contact_mail
             FROM platelets_inventory p
             JOIN hospital h ON p.hospital_id = h.hospital_id
             WHERE p.hospital_id != ${hospitalId}
@@ -373,7 +376,7 @@ export async function getSurplusAlerts(hospitalId: number) {
               AND p.rh = ${rh}
               AND p.expiration_date > CURRENT_DATE
               AND p.active = true
-            GROUP BY h.hospital_id, h.hospital_name
+            GROUP BY h.hospital_id, h.hospital_name, h.hospital_contact_phone, h.hospital_contact_mail
             HAVING COUNT(*) > 10
             ORDER BY count DESC
           `
@@ -389,6 +392,8 @@ export async function getSurplusAlerts(hospitalId: number) {
               hospitalId: hospital.hospital_id,
               count: hospital.count,
               yourCount: count,
+              contactPhone: hospital.hospital_contact_phone,
+              contactEmail: hospital.hospital_contact_mail,
             })
           }
         }

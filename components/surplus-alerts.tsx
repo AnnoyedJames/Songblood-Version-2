@@ -11,6 +11,8 @@ type SurplusAlert = {
   hospitalId: number
   count: number
   yourCount: number
+  contactPhone?: string
+  contactEmail?: string
 }
 
 type SurplusAlertsProps = {
@@ -54,6 +56,12 @@ export default function SurplusAlerts({ alerts }: SurplusAlertsProps) {
                   {alert.type}
                 </div>
                 <div className="text-sm text-muted-foreground">You currently have {alert.yourCount} units</div>
+                {(alert.contactPhone || alert.contactEmail) && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Contact: {alert.contactPhone && <span className="mr-2">{alert.contactPhone}</span>}
+                    {alert.contactEmail && <span>{alert.contactEmail}</span>}
+                  </div>
+                )}
               </div>
             </div>
           ))}

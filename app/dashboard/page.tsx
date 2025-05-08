@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import DatabaseError from "@/components/database-error"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import Link from "next/link"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, PlusCircle } from "lucide-react"
 import { redirect } from "next/navigation"
 
 // Force dynamic rendering since we're using cookies
@@ -71,10 +71,16 @@ export default async function DashboardPage() {
           <main className="flex-1 container py-6 px-4 md:py-8">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold">Dashboard</h1>
-              <Link href="/diagnostics" className="text-sm text-primary hover:underline flex items-center">
-                <span>Data Diagnostics</span>
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Link>
+              <div className="flex items-center gap-4">
+                <Link href="/add-entry" className="flex items-center text-sm text-primary hover:underline">
+                  <PlusCircle className="h-4 w-4 mr-1" />
+                  <span>Add New Entry</span>
+                </Link>
+                <Link href="/diagnostics" className="text-sm text-primary hover:underline flex items-center">
+                  <span>Data Diagnostics</span>
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
             </div>
 
             {/* Top section: Chart and Warnings side by side */}

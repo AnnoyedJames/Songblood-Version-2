@@ -1,8 +1,5 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,56 +10,42 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
 
 interface ConfirmationDialogProps {
   title: string
   description: string
-  actionLabel: string
-  cancelLabel?: string
-  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
-  onConfirm: () => Promise<void> | void
-  trigger: React.ReactNode
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  confirmText?: string
+  cancelText?: string
+  variant?: "default" | "destructive"
 }
 
 export function ConfirmationDialog({
   title,
   description,
-  actionLabel,
-  cancelLabel = "Cancel",
-  variant = "destructive",
+  open,
+  onOpenChange,
   onConfirm,
-  trigger,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  variant = "default",
 }: ConfirmationDialogProps) {
-  const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleConfirm = async () => {
-    try {
-      setIsLoading(true)
-      await onConfirm()
-      setOpen(false)
-    } catch (error) {
-      console.error("Error during confirmation action:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <div onClick={() => setOpen(true)}>{trigger}</div>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>{cancelLabel}</AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button variant={variant} onClick={handleConfirm} disabled={isLoading}>
-              {isLoading ? "Processing..." : actionLabel}
-            </Button>
+          <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className={variant === "destructive" ? "bg-red-600 hover:bg-red-700" : ""}
+          >
+            {confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
