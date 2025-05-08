@@ -7,26 +7,28 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
-import DbConnectionStatus from "@/components/db-connection-status"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { ErrorType } from "@/lib/error-handling"
 
-export default function LoginForm() {
+interface LoginFormProps {
+  returnTo?: string
+}
+
+export default function LoginForm({ returnTo }: LoginFormProps) {
+  const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const router = useRouter()
-  const { toast } = useToast()
+  const [errorType, setErrorType] = useState<ErrorType | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
     setIsLoading(true)
+    setError("")
+    setErrorType(null)
 
     try {
       const response = await fetch("/api/login", {
@@ -34,43 +36,43 @@ export default function LoginForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password, rememberMe }),
+        body: JSON.stringify({ username, password }),
       })
 
       const data = await response.json()
 
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         setError(data.error || "Login failed. Please check your credentials.")
+        setErrorType(data.type || ErrorType.AUTHENTICATION)
         setIsLoading(false)
         return
       }
 
-      // Login successful
-      toast({
-        title: "Login successful",
-        description: `Welcome back, ${username}!`,
-      })
+      // If login is successful and we have a returnTo URL, navigate there
+      if (returnTo) {
+        const decodedReturnTo = decodeURIComponent(returnTo)
+        // Validate the returnTo URL to prevent open redirect vulnerabilities
+        if (decodedReturnTo.startsWith("/") && !decodedReturnTo.includes("//")) {
+          router.push(decodedReturnTo)
+          return
+        }
+      }
 
-      // Redirect to dashboard
+      // Otherwise go to dashboard
       router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
+      setErrorType(ErrorType.SERVER)
       setIsLoading(false)
     }
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Login</CardTitle>
-        <CardDescription>Enter your credentials to access your account</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <DbConnectionStatus />
-
+    <Card>
+      <CardContent className="pt-6">
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant={errorType === ErrorType.DATABASE_CONNECTION ? "warning" : "destructive"} className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -84,49 +86,38 @@ export default function LoginForm() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
               required
+              autoComplete="username"
               disabled={isLoading}
             />
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+            </div>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
               required
+              autoComplete="current-password"
               disabled={isLoading}
             />
           </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="remember-me"
-              checked={rememberMe}
-              onCheckedChange={(checked) => setRememberMe(checked === true)}
-              disabled={isLoading}
-            />
-            <Label htmlFor="remember-me" className="text-sm cursor-pointer">
-              Keep me logged in
-            </Label>
-          </div>
+
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Logging in...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Logging in...
               </>
             ) : (
-              "Login"
+              "Log in"
             )}
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex justify-center">
-        <p className="text-sm text-muted-foreground">Songblood Admin Portal - Secure Blood Inventory Management</p>
-      </CardFooter>
     </Card>
   )
 }

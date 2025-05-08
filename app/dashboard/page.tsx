@@ -49,17 +49,26 @@ export default async function DashboardPage() {
         getSurplusAlerts(hospitalId),
       ])
 
+      console.log("Dashboard - Red Blood Cell data:", JSON.stringify(redBlood, null, 2))
+
       // Calculate accurate totals using Number() to ensure proper conversion
       const redBloodUnits = redBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const redBloodAmount = redBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+
+      console.log("Dashboard - Red Blood Cell totals:", { units: redBloodUnits, amount: redBloodAmount })
 
       // Calculate accurate totals using Number() to ensure proper conversion
       const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
-      // Calculate accurate totals using Number() to ensure proper conversion
-      const plateletsUnits = platelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      console.log("Dashboard - Platelets data:", JSON.stringify(platelets, null, 2))
+
       const plateletsAmount = platelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const plateletsUnits = platelets.reduce((sum, item) => {
+        console.log("Platelet item:", item)
+        return sum + Number(item.count || 0)
+      }, 0)
+      console.log("Dashboard - Platelets totals:", { units: plateletsUnits, amount: plateletsAmount })
 
       return (
         <div className="min-h-screen flex flex-col">
@@ -151,7 +160,7 @@ export default async function DashboardPage() {
 
       // Handle database connection errors
       if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
-        return <DatabaseError message="Unable to load dashboard data. Database connection failed." />
+        return <DatabaseError message="Unable toload dashboard data. Database connection failed." />
       }
 
       // Rethrow other errors to be handled by the error boundary
