@@ -24,80 +24,86 @@ type WarningItem = {
 }
 
 export default function BloodInventoryWarnings({
-  redBlood,
-  plasma,
-  platelets,
+  redBlood = [],
+  plasma = [],
+  platelets = [],
   className = "",
 }: BloodInventoryWarningsProps) {
   // Process all inventory items to find warnings
   const warnings: WarningItem[] = []
 
   // Check red blood cells
-  redBlood.forEach((item) => {
-    if (item.total_amount < 500) {
-      warnings.push({
-        type: "redblood",
-        blood_type: item.blood_type,
-        rh: item.rh,
-        count: item.count,
-        total_amount: item.total_amount,
-        status: "critical",
-      })
-    } else if (item.total_amount < 1500) {
-      warnings.push({
-        type: "redblood",
-        blood_type: item.blood_type,
-        rh: item.rh,
-        count: item.count,
-        total_amount: item.total_amount,
-        status: "low",
-      })
-    }
-  })
+  if (Array.isArray(redBlood)) {
+    redBlood.forEach((item) => {
+      if (item.total_amount < 500) {
+        warnings.push({
+          type: "redblood",
+          blood_type: item.blood_type,
+          rh: item.rh,
+          count: item.count,
+          total_amount: item.total_amount,
+          status: "critical",
+        })
+      } else if (item.total_amount < 1500) {
+        warnings.push({
+          type: "redblood",
+          blood_type: item.blood_type,
+          rh: item.rh,
+          count: item.count,
+          total_amount: item.total_amount,
+          status: "low",
+        })
+      }
+    })
+  }
 
   // Check plasma
-  plasma.forEach((item) => {
-    if (item.total_amount < 500) {
-      warnings.push({
-        type: "plasma",
-        blood_type: item.blood_type,
-        count: item.count,
-        total_amount: item.total_amount,
-        status: "critical",
-      })
-    } else if (item.total_amount < 1500) {
-      warnings.push({
-        type: "plasma",
-        blood_type: item.blood_type,
-        count: item.count,
-        total_amount: item.total_amount,
-        status: "low",
-      })
-    }
-  })
+  if (Array.isArray(plasma)) {
+    plasma.forEach((item) => {
+      if (item.total_amount < 500) {
+        warnings.push({
+          type: "plasma",
+          blood_type: item.blood_type,
+          count: item.count,
+          total_amount: item.total_amount,
+          status: "critical",
+        })
+      } else if (item.total_amount < 1500) {
+        warnings.push({
+          type: "plasma",
+          blood_type: item.blood_type,
+          count: item.count,
+          total_amount: item.total_amount,
+          status: "low",
+        })
+      }
+    })
+  }
 
   // Check platelets
-  platelets.forEach((item) => {
-    if (item.total_amount < 500) {
-      warnings.push({
-        type: "platelets",
-        blood_type: item.blood_type,
-        rh: item.rh,
-        count: item.count,
-        total_amount: item.total_amount,
-        status: "critical",
-      })
-    } else if (item.total_amount < 1500) {
-      warnings.push({
-        type: "platelets",
-        blood_type: item.blood_type,
-        rh: item.rh,
-        count: item.count,
-        total_amount: item.total_amount,
-        status: "low",
-      })
-    }
-  })
+  if (Array.isArray(platelets)) {
+    platelets.forEach((item) => {
+      if (item.total_amount < 500) {
+        warnings.push({
+          type: "platelets",
+          blood_type: item.blood_type,
+          rh: item.rh,
+          count: item.count,
+          total_amount: item.total_amount,
+          status: "critical",
+        })
+      } else if (item.total_amount < 1500) {
+        warnings.push({
+          type: "platelets",
+          blood_type: item.blood_type,
+          rh: item.rh,
+          count: item.count,
+          total_amount: item.total_amount,
+          status: "low",
+        })
+      }
+    })
+  }
 
   // Sort warnings by status (critical first) and then by blood type
   warnings.sort((a, b) => {

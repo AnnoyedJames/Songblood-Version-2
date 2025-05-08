@@ -3,7 +3,6 @@ import { redirect } from "next/navigation"
 import LoginForm from "./login-form"
 import DbConnectionStatus from "@/components/db-connection-status"
 import RedirectHandler from "@/components/redirect-handler"
-import FallbackModeIndicator from "@/components/fallback-mode-indicator"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -56,7 +55,6 @@ export default async function LoginPage({
           )}
         </div>
 
-        <FallbackModeIndicator />
         {redirectReason && <RedirectHandler reason={redirectReason} />}
         <DbConnectionStatus />
         <LoginForm returnTo={returnTo} />

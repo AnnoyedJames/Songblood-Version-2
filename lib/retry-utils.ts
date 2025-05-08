@@ -3,6 +3,20 @@
  */
 
 import { AppError, ErrorType } from "./error-handling"
+import { isRetryableError } from "./error-handling"
+import { DB_CONFIG } from "./db-config"
+
+// Default retry options
+const DEFAULT_RETRY_OPTIONS = {
+  maxRetries: DB_CONFIG.RETRY_COUNT,
+  initialDelay: DB_CONFIG.RETRY_DELAY_MS, // 2 seconds
+  maxDelay: 30000, // 30 seconds
+  factor: 2, // Exponential backoff factor
+  jitter: true, // Add randomness to the delay
+}
+
+// Type for retry options
+export type RetryOptions = typeof DEFAULT_RETRY_OPTIONS
 
 /**
  * Configuration for retry operations
@@ -18,54 +32,74 @@ export interface RetryConfig {
  * Default retry configuration
  */
 export const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 3,
-  initialDelayMs: 500,
-  maxDelayMs: 5000,
+  maxRetries: DB_CONFIG.RETRY_COUNT,
+  initialDelayMs: DB_CONFIG.RETRY_DELAY_MS,
+  maxDelayMs: 30000,
   backoffFactor: 2,
 }
 
 /**
- * Executes a function with retry logic
- * @param fn The function to execute
- * @param config Retry configuration
- * @returns The result of the function
+ * Retry a function with exponential backoff
+ * @param fn Function to retry
+ * @param options Retry options
+ * @returns Promise with the result of the function
  */
-export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = DEFAULT_RETRY_CONFIG): Promise<T> {
-  let lastError: Error | null = null
-  let delay = config.initialDelayMs
+export async function retry<T>(fn: () => Promise<T>, options: Partial<RetryOptions> = {}): Promise<T> {
+  // Merge options with defaults
+  const opts = { ...DEFAULT_RETRY_OPTIONS, ...options }
 
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     try {
+      // Try to execute the function
       return await fn()
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
+      // Save the error
+      lastError = error
 
-      // Don't retry if this is not a retryable error
-      if (error instanceof AppError && error.retryable === false) {
+      // If this is the last attempt or the error is not retryable, throw
+      if (attempt === opts.maxRetries || !isRetryableError(error)) {
         throw error
       }
 
-      // Don't retry on the last attempt
-      if (attempt === config.maxRetries) {
-        throw lastError
+      // Calculate delay with exponential backoff
+      let delay = opts.initialDelay * Math.pow(opts.factor, attempt)
+
+      // Apply maximum delay
+      delay = Math.min(delay, opts.maxDelay)
+
+      // Add jitter if enabled (±20%)
+      if (opts.jitter) {
+        const jitterFactor = 0.8 + Math.random() * 0.4 // 0.8 to 1.2
+        delay = Math.floor(delay * jitterFactor)
       }
 
-      // Calculate next delay with exponential backoff
-      delay = Math.min(delay * config.backoffFactor, config.maxDelayMs)
+      // Log retry attempt
+      console.log(`Retry attempt ${attempt + 1}/${opts.maxRetries} after ${delay}ms`)
 
-      // Add some jitter to prevent all retries happening at the same time
-      const jitter = Math.random() * 0.3 * delay
-      const actualDelay = delay + jitter
-
-      console.log(`Retry attempt ${attempt + 1}/${config.maxRetries} after ${Math.round(actualDelay)}ms`)
-
-      // Wait before the next attempt
-      await new Promise((resolve) => setTimeout(resolve, actualDelay))
+      // Wait before next attempt
+      await new Promise((resolve) => setTimeout(resolve, delay))
     }
   }
 
-  // This should never happen due to the throw in the loop
-  throw new AppError(ErrorType.SERVER, "Maximum retry attempts reached", lastError?.message || "Unknown error", false)
+  // This should never happen, but TypeScript requires a return
+  throw lastError
+}
+
+/**
+ * Wrap a function with retry capability
+ * @param fn Function to wrap
+ * @param options Retry options
+ * @returns Wrapped function with retry capability
+ */
+export function withRetry<T, Args extends any[]>(
+  fn: (...args: Args) => Promise<T>,
+  options: Partial<RetryOptions> = {},
+): (...args: Args) => Promise<T> {
+  return (...args: Args) => {
+    return retry(() => fn(...args), options)
+  }
 }
 
 /**

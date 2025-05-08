@@ -1,52 +1,84 @@
-import { neon, neonConfig } from "@neondatabase/serverless"
-import { logError } from "./error-handling"
+import { neon } from "@neondatabase/serverless"
+import { AppError, ErrorType } from "./error-handling"
+import { validateDatabaseUrl, sanitizeDatabaseUrl } from "./db-config"
 
-/**
- * Utility function to test database connection without using fetchConnectionCache
- * This is used to verify that the application works correctly after removing the deprecated option
- */
-export async function testDatabaseConnectionWithoutCache(): Promise<{
-  success: boolean
-  message: string
-  latency?: number
-}> {
+// Function to test database connection without using cache
+export async function testDatabaseConnectionWithoutCache() {
   try {
-    console.log("Testing database connection with current configuration:")
-    console.log(`- fetchRetryTimeout: ${neonConfig.fetchRetryTimeout}ms`)
-    console.log(`- fetchRetryCount: ${neonConfig.fetchRetryCount}`)
-    console.log(`- wsConnectionTimeoutMs: ${neonConfig.wsConnectionTimeoutMs}ms`)
-
     // Check if DATABASE_URL is defined
     if (!process.env.DATABASE_URL) {
       return {
         success: false,
-        message: "DATABASE_URL environment variable is not defined",
+        message: "Database connection string is missing",
+        error: "DATABASE_URL environment variable is not defined",
+        type: ErrorType.DATABASE_CONNECTION,
       }
     }
 
-    const dbClient = neon(process.env.DATABASE_URL)
+    // Validate database URL format
+    if (!validateDatabaseUrl(process.env.DATABASE_URL)) {
+      return {
+        success: false,
+        message: "Invalid database URL format",
+        error: "The DATABASE_URL does not appear to be a valid PostgreSQL connection string",
+        type: ErrorType.DATABASE_CONNECTION,
+      }
+    }
 
-    // Measure query latency
-    const startTime = Date.now()
+    // Create a direct neon client for testing only
+    const testClient = neon(process.env.DATABASE_URL)
 
-    // Execute a simple query using tagged template literal
-    const result = await dbClient`SELECT 1 as connection_test`
+    // Use a timeout promise to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("Database connection timed out"))
+      }, 10000) // 10 seconds timeout
+    })
 
-    const endTime = Date.now()
-    const latency = endTime - startTime
+    try {
+      // Race the database query against the timeout
+      const result = await Promise.race([
+        testClient`SELECT current_timestamp as timestamp, current_database() as database_name, version() as postgres_version`,
+        timeoutPromise,
+      ])
 
-    return {
-      success: true,
-      message: "Database connection successful",
-      latency,
+      // Return success with database details
+      return {
+        success: true,
+        message: "Database connection successful",
+        details: {
+          timestamp: result[0].timestamp,
+          database: result[0].database_name,
+          version: result[0].postgres_version,
+          connection_url: sanitizeDatabaseUrl(process.env.DATABASE_URL),
+        },
+      }
+    } catch (fetchError) {
+      // Handle fetch errors specifically
+      console.error("Database connection test failed:", fetchError)
+
+      return {
+        success: false,
+        message: "Failed to connect to database",
+        error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        type: ErrorType.DATABASE_CONNECTION,
+        details: {
+          connection_url: sanitizeDatabaseUrl(process.env.DATABASE_URL),
+          available_env_vars: Object.keys(process.env)
+            .filter((key) => key.includes("DATABASE") || key.includes("POSTGRES"))
+            .join(", "),
+        },
+      }
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logError(error, "Database Connection Test")
+    // Handle any other errors
+    console.error("Database connection test error:", error)
 
     return {
       success: false,
-      message: `Database connection failed: ${errorMessage}`,
+      message: "Error testing database connection",
+      error: error instanceof Error ? error.message : "Unknown database connection error",
+      type: error instanceof AppError ? error.type : ErrorType.SERVER,
     }
   }
 }

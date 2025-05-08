@@ -1,109 +1,75 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, WifiOff } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
+import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react"
 
-export default function DbConnectionStatus() {
+export default function DatabaseConnectionStatus() {
   const [status, setStatus] = useState<"loading" | "connected" | "error">("loading")
-  const [errorMessage, setErrorMessage] = useState("")
-  const [retryCount, setRetryCount] = useState(0)
+  const [message, setMessage] = useState<string>("")
+  const [isChecking, setIsChecking] = useState(false)
+
+  const checkConnection = async () => {
+    setIsChecking(true)
+    try {
+      const response = await fetch("/api/db-status", {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      })
+      const data = await response.json()
+
+      if (data.connected) {
+        setStatus("connected")
+        setMessage("Database connected")
+      } else {
+        setStatus("error")
+        setMessage(data.error || "Unable to connect to database")
+      }
+    } catch (error) {
+      setStatus("error")
+      setMessage("Error checking database connection")
+      console.error("Error checking database connection:", error)
+    } finally {
+      setIsChecking(false)
+    }
+  }
 
   useEffect(() => {
-    let isMounted = true
-    const abortController = new AbortController()
-
-    async function checkConnection() {
-      try {
-        // Add a cache-busting parameter to prevent caching
-        const response = await fetch(`/api/check-connection?t=${Date.now()}`, {
-          // Add these options to prevent caching
-          cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
-          signal: abortController.signal,
-        }).catch((err) => {
-          // Handle fetch errors (network issues, etc.)
-          if (isMounted) {
-            setStatus("error")
-            setErrorMessage("Network error: Unable to check database connection")
-          }
-          throw err
-        })
-
-        // Check if component is still mounted before updating state
-        if (!isMounted) return
-
-        if (!response.ok) {
-          setStatus("error")
-          setErrorMessage(`Failed to check database connection: ${response.statusText}`)
-          return
-        }
-
-        const data = await response.json()
-
-        if (data.connected) {
-          setStatus("connected")
-        } else {
-          setStatus("error")
-          setErrorMessage(data.error || "Unable to connect to the database")
-        }
-      } catch (error) {
-        // Check if component is still mounted before updating state
-        if (!isMounted) return
-
-        console.error("Error checking database connection:", error)
-        setStatus("error")
-        setErrorMessage(error instanceof Error ? error.message : "Failed to check database connection")
-      }
-    }
-
-    // Check connection status
     checkConnection()
+    // Set up interval to check connection every 30 seconds
+    const interval = setInterval(checkConnection, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
-    // Cleanup function to prevent memory leaks
-    return () => {
-      isMounted = false
-      abortController.abort()
-    }
-  }, [retryCount])
-
-  // Function to retry the connection check
-  const handleRetry = () => {
-    setStatus("loading")
-    setRetryCount((prev) => prev + 1)
-  }
-
-  if (status === "loading") {
-    return (
-      <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        Checking database connection...
-      </div>
-    )
-  }
-
-  if (status === "error") {
-    return (
-      <Alert variant="warning" className="mb-4">
-        <WifiOff className="h-4 w-4" />
-        <AlertTitle>Database Connection Issue</AlertTitle>
-        <AlertDescription className="flex flex-col">
-          <span>{errorMessage}</span>
-          <span className="mt-1">
-            You can continue with limited functionality. Some features may not work properly.
-          </span>
-          <Button variant="outline" size="sm" className="mt-2 w-full sm:w-auto" onClick={handleRetry}>
-            Retry connection check
-          </Button>
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  return null
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {status === "loading" ? (
+        <div className="flex items-center gap-1 text-yellow-600">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span>Checking database connection...</span>
+        </div>
+      ) : status === "connected" ? (
+        <div className="flex items-center gap-1 text-green-600">
+          <CheckCircle2 className="h-4 w-4" />
+          <span>Database connected</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 text-red-600">
+          <AlertCircle className="h-4 w-4" />
+          <span>Database error: {message}</span>
+          <button
+            onClick={checkConnection}
+            disabled={isChecking}
+            className="ml-2 rounded-md bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+            aria-label="Retry database connection"
+          >
+            {isChecking ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Retry"}
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }

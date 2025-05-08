@@ -49,20 +49,26 @@ export default async function DashboardPage() {
         getSurplusAlerts(hospitalId),
       ])
 
-      console.log("Dashboard - Red Blood Cell data:", JSON.stringify(redBlood, null, 2))
+      // Ensure all data arrays are defined before using them
+      const safeRedBlood = redBlood || []
+      const safePlasma = plasma || []
+      const safePlatelets = platelets || []
+      const safeAlerts = alerts || []
+
+      console.log("Dashboard - Red Blood Cell data:", JSON.stringify(safeRedBlood, null, 2))
 
       // Calculate accurate totals using Number() to ensure proper conversion
-      const redBloodUnits = redBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
-      const redBloodAmount = redBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const redBloodUnits = safeRedBlood.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const redBloodAmount = safeRedBlood.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
       console.log("Dashboard - Red Blood Cell totals:", { units: redBloodUnits, amount: redBloodAmount })
 
       // Calculate accurate totals using Number() to ensure proper conversion
-      const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
-      const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const plasmaUnits = safePlasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const plasmaAmount = safePlasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
-      const plateletsUnits = platelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
-      const plateletsAmount = platelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const plateletsUnits = safePlatelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const plateletsAmount = safePlatelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
       return (
         <div className="min-h-screen flex flex-col">
@@ -88,9 +94,9 @@ export default async function DashboardPage() {
               {/* Blood Inventory Chart with thresholds */}
               <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
                 <BloodInventoryChart
-                  redBlood={redBlood}
-                  plasma={plasma}
-                  platelets={platelets}
+                  redBlood={safeRedBlood}
+                  plasma={safePlasma}
+                  platelets={safePlatelets}
                   showThresholds={true}
                   className="h-full"
                 />
@@ -100,9 +106,9 @@ export default async function DashboardPage() {
               <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
                 <div className="relative h-full">
                   <RealTimeInventoryWarnings
-                    initialRedBlood={redBlood}
-                    initialPlasma={plasma}
-                    initialPlatelets={platelets}
+                    initialRedBlood={safeRedBlood}
+                    initialPlasma={safePlasma}
+                    initialPlatelets={safePlatelets}
                     hospitalId={hospitalId}
                     refreshInterval={30000} // Refresh every 30 seconds
                     className="h-full"
@@ -133,21 +139,21 @@ export default async function DashboardPage() {
 
             <div className="mb-8">
               <Suspense fallback={<Skeleton className="w-full h-96 rounded-lg" />}>
-                <SurplusAlerts alerts={alerts} />
+                <SurplusAlerts alerts={safeAlerts} />
               </Suspense>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
-                <InventoryTable title="Red Blood Cell Inventory" inventory={redBlood} showRh={true} />
+                <InventoryTable title="Red Blood Cell Inventory" inventory={safeRedBlood} showRh={true} />
               </Suspense>
 
               <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
-                <InventoryTable title="Plasma Inventory" inventory={plasma} />
+                <InventoryTable title="Plasma Inventory" inventory={safePlasma} />
               </Suspense>
 
               <Suspense fallback={<Skeleton className="w-full h-64 rounded-lg" />}>
-                <InventoryTable title="Platelets Inventory" inventory={platelets} showRh={true} />
+                <InventoryTable title="Platelets Inventory" inventory={safePlatelets} showRh={true} />
               </Suspense>
             </div>
           </main>

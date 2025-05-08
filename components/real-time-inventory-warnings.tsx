@@ -20,16 +20,16 @@ type RealTimeInventoryWarningsProps = {
 }
 
 export default function RealTimeInventoryWarnings({
-  initialRedBlood,
-  initialPlasma,
-  initialPlatelets,
+  initialRedBlood = [],
+  initialPlasma = [],
+  initialPlatelets = [],
   hospitalId,
   refreshInterval = 60000, // Default to 1 minute
   className = "",
 }: RealTimeInventoryWarningsProps) {
-  const [redBlood, setRedBlood] = useState(initialRedBlood)
-  const [plasma, setPlasma] = useState(initialPlasma)
-  const [platelets, setPlatelets] = useState(initialPlatelets)
+  const [redBlood, setRedBlood] = useState<InventoryItem[]>(initialRedBlood || [])
+  const [plasma, setPlasma] = useState<InventoryItem[]>(initialPlasma || [])
+  const [platelets, setPlatelets] = useState<InventoryItem[]>(initialPlatelets || [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,9 +57,9 @@ export default function RealTimeInventoryWarnings({
           plateletsRes.json(),
         ])
 
-        setRedBlood(redBloodData)
-        setPlasma(plasmaData)
-        setPlatelets(plateletsData)
+        setRedBlood(redBloodData || [])
+        setPlasma(plasmaData || [])
+        setPlatelets(plateletsData || [])
       } catch (err) {
         console.error("Error fetching inventory data:", err)
         setError("Failed to refresh inventory data")
