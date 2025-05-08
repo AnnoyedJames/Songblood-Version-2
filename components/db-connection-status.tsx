@@ -31,6 +31,15 @@ export default function DbConnectionStatus() {
           return
         }
 
+        // Check if the response is JSON
+        const contentType = response.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          console.error("DB status API returned non-JSON response:", contentType)
+          setStatus("error")
+          setMessage("API returned invalid response format")
+          return
+        }
+
         const data = await response.json()
         console.log("DB status response:", data)
 

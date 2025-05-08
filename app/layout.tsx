@@ -7,8 +7,8 @@ import PreviewModeIndicator from "@/components/preview-mode-indicator"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Blood Inventory Management",
-  description: "Hospital blood inventory management system",
+  title: "Songblood Admin Portal",
+  description: "Blood inventory management system for hospitals",
     generator: 'v0.dev'
 }
 
