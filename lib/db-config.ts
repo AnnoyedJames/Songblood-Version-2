@@ -3,10 +3,10 @@ import { neonConfig } from "@neondatabase/serverless"
 
 // Database configuration constants
 export const DB_CONFIG = {
-  CONNECTION_TIMEOUT_MS: 60000, // 60 seconds (increased from 10 seconds)
+  CONNECTION_TIMEOUT_MS: 60000, // 60 seconds
   MAX_CONNECTION_TIME_MS: 120000, // 2 minutes maximum connection time
   RETRY_COUNT: 3,
-  RETRY_DELAY_MS: 2000, // Increased from 1000ms
+  RETRY_DELAY_MS: 2000, // 2 seconds
   CONNECTION_POOL_SIZE: 10,
   QUERY_CACHE_TTL_SECONDS: 60, // Cache TTL in seconds
 }
@@ -35,6 +35,22 @@ export function configureNeon() {
   console.log(`- WebSocket timeout: ${DB_CONFIG.CONNECTION_TIMEOUT_MS}ms`)
 }
 
+// Function to get the database URL from environment variables
+export function getDatabaseUrl(): string {
+  // Try each database URL environment variable in order of preference
+  const dbUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING
+
+  if (!dbUrl && process.env.NODE_ENV === "production") {
+    console.error("No database URL environment variable found. Database functionality will be unavailable.")
+  }
+
+  return dbUrl || ""
+}
+
 // Validate database URL format
 export function validateDatabaseUrl(url: string | undefined): boolean {
   if (!url) return false
@@ -54,7 +70,9 @@ export function sanitizeDatabaseUrl(url: string | undefined): string {
 
   try {
     const dbUrl = new URL(url)
-    return `${dbUrl.protocol}//${dbUrl.host}${dbUrl.pathname}`
+    // Hide password for security
+    dbUrl.password = "********"
+    return dbUrl.toString()
   } catch (error) {
     return "invalid-url-format"
   }

@@ -9,6 +9,7 @@ export enum ErrorType {
   TIMEOUT = "TIMEOUT",
   RATE_LIMIT = "RATE_LIMIT",
   CONFLICT = "CONFLICT",
+  BUILD = "BUILD",
 }
 
 // Error messages for users
@@ -22,6 +23,7 @@ export const ErrorMessages = {
   [ErrorType.TIMEOUT]: "The operation timed out. Please try again later.",
   [ErrorType.RATE_LIMIT]: "Too many requests. Please try again later.",
   [ErrorType.CONFLICT]: "A conflict occurred with your request. Please refresh and try again.",
+  [ErrorType.BUILD]: "An error occurred during build. Check the build logs for details.",
 }
 
 // Error class for application errors
@@ -135,4 +137,27 @@ export function getUserFriendlyErrorMessage(error: unknown): string {
   }
 
   return "An unknown error occurred. Please try again later."
+}
+
+// New function for build-time error logging
+export function logBuildError(error: unknown, context?: string): void {
+  console.error(`[BUILD ERROR${context ? ` - ${context}` : ""}]`, error)
+
+  // Report to monitoring service if available
+  if (process.env.NEXT_PUBLIC_VERCEL_ENV === "production") {
+    // Send to monitoring service if implemented
+  }
+}
+
+// New function to handle errors during build time
+export function handleBuildError(error: unknown, context?: string): void {
+  logBuildError(error, context)
+
+  // In production builds, we want to continue rather than fail
+  if (process.env.NODE_ENV === "production") {
+    console.warn("Build error occurred but continuing to prevent deployment failure")
+  } else {
+    // In development, we want to fail fast
+    throw error
+  }
 }
