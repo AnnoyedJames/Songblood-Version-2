@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import DatabaseError from "@/components/database-error"
 import { AppError, ErrorType } from "@/lib/error-handling"
 import Link from "next/link"
-import { ChevronRight, PlusCircle } from "lucide-react"
+import { PlusCircle } from "lucide-react"
 import { redirect } from "next/navigation"
 
 // Force dynamic rendering since we're using cookies
@@ -61,8 +61,14 @@ export default async function DashboardPage() {
       const plasmaUnits = plasma.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const plasmaAmount = plasma.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
 
-      const plateletsUnits = platelets.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      console.log("Dashboard - Platelets data:", JSON.stringify(platelets, null, 2))
+
       const plateletsAmount = platelets.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+      const plateletsUnits = platelets.reduce((sum, item) => {
+        console.log("Platelet item:", item)
+        return sum + Number(item.count || 0)
+      }, 0)
+      console.log("Dashboard - Platelets totals:", { units: plateletsUnits, amount: plateletsAmount })
 
       return (
         <div className="min-h-screen flex flex-col">
@@ -75,10 +81,6 @@ export default async function DashboardPage() {
                 <Link href="/add-entry" className="flex items-center text-sm text-primary hover:underline">
                   <PlusCircle className="h-4 w-4 mr-1" />
                   <span>Add New Entry</span>
-                </Link>
-                <Link href="/diagnostics" className="text-sm text-primary hover:underline flex items-center">
-                  <span>Data Diagnostics</span>
-                  <ChevronRight className="h-4 w-4 ml-1" />
                 </Link>
               </div>
             </div>
@@ -158,7 +160,7 @@ export default async function DashboardPage() {
 
       // Handle database connection errors
       if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
-        return <DatabaseError message="Unable to load dashboard data. Database connection failed." />
+        return <DatabaseError message="Unable toload dashboard data. Database connection failed." />
       }
 
       // Rethrow other errors to be handled by the error boundary
