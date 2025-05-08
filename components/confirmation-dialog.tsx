@@ -1,5 +1,8 @@
 "use client"
 
+import type React from "react"
+
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,37 +12,59 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 
-type ConfirmationDialogProps = {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
+interface ConfirmationDialogProps {
   title: string
   description: string
-  confirmText?: string
-  cancelText?: string
+  actionLabel: string
+  cancelLabel?: string
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
+  onConfirm: () => Promise<void> | void
+  trigger: React.ReactNode
 }
 
-export default function ConfirmationDialog({
-  isOpen,
-  onClose,
-  onConfirm,
+export function ConfirmationDialog({
   title,
   description,
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  actionLabel,
+  cancelLabel = "Cancel",
+  variant = "destructive",
+  onConfirm,
+  trigger,
 }: ConfirmationDialogProps) {
+  const [open, setOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleConfirm = async () => {
+    try {
+      setIsLoading(true)
+      await onConfirm()
+      setOpen(false)
+    } catch (error) {
+      console.error("Error during confirmation action:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelText}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>{confirmText}</AlertDialogAction>
+          <AlertDialogCancel disabled={isLoading}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <Button variant={variant} onClick={handleConfirm} disabled={isLoading}>
+              {isLoading ? "Processing..." : actionLabel}
+            </Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

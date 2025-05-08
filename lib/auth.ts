@@ -1,68 +1,219 @@
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
-import { sql } from "@/lib/db"
+import { verifyAdminCredentials, registerAdmin } from "./db"
+import { AppError, ErrorType, logError } from "./error-handling"
+import type { NextRequest } from "next/server"
 
-export type SessionData = {
-  adminId: number
-  hospitalId: number
-  username: string
-  isLoggedIn: boolean
-}
-
-/**
- * Checks if the user is authenticated and returns session data
- * Redirects to login page if not authenticated
- */
-export async function requireAuth(): Promise<SessionData> {
-  // Check for session cookie
-  const cookieStore = cookies()
-  const sessionToken = cookieStore.get("session_token")?.value
-
-  // If no session token, redirect to login
-  if (!sessionToken) {
-    redirect("/login")
-  }
-
-  // Verify session in database
-  const sessionResult = await sql`
-    SELECT a.id as admin_id, a.hospital_id, a.username
-    FROM admin_sessions s
-    JOIN admins a ON s.admin_id = a.id
-    WHERE s.token = ${sessionToken} AND s.expires_at > NOW()
-  `
-
-  // If session not found or expired, redirect to login
-  if (sessionResult.length === 0) {
-    redirect("/login")
-  }
-
-  // Return session data
-  return {
-    adminId: sessionResult[0].admin_id,
-    hospitalId: sessionResult[0].hospital_id,
-    username: sessionResult[0].username,
-    isLoggedIn: true,
-  }
-}
-
-/**
- * Invalidates the current session
- */
-export async function logout(): Promise<void> {
+// Session management
+export async function createSession(adminId: number, hospitalId: number, username?: string, password?: string) {
   try {
-    const cookieStore = cookies()
-    const sessionToken = cookieStore.get("session_token")?.value
+    const oneDay = 24 * 60 * 60 * 1000
+    cookies().set("adminId", adminId.toString(), { httpOnly: true, maxAge: oneDay })
+    cookies().set("hospitalId", hospitalId.toString(), { httpOnly: true, maxAge: oneDay })
 
-    if (!sessionToken) {
-      return
+    // Store credentials for API calls if provided
+    if (username && password) {
+      cookies().set("adminUsername", username, { httpOnly: true, maxAge: oneDay })
+      cookies().set("adminPassword", password, { httpOnly: true, maxAge: oneDay })
     }
 
-    // Delete session from database
-    await sql`
-      DELETE FROM admin_sessions
-      WHERE token = ${sessionToken}
-    `
+    return true
   } catch (error) {
-    console.error("Error during logout:", error)
+    throw logError(error, "Create Session")
+  }
+}
+
+export async function getSession() {
+  try {
+    const adminId = cookies().get("adminId")?.value
+    const hospitalId = cookies().get("hospitalId")?.value
+
+    if (!adminId || !hospitalId) {
+      return null
+    }
+
+    return {
+      adminId: Number(adminId),
+      hospitalId: Number(hospitalId),
+    }
+  } catch (error) {
+    throw logError(error, "Get Session")
+  }
+}
+
+// Enhanced clearSession function to ensure all cookies are properly cleared
+export async function clearSession() {
+  try {
+    // Log the session clearing attempt
+    console.log("Clearing session...")
+
+    // Define cookie options for clearing
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0, // Expire immediately
+      sameSite: "strict" as const,
+    }
+
+    // Get all cookies to ensure we don't miss any
+    const allCookies = cookies().getAll()
+    console.log(`Found ${allCookies.length} cookies to examine`)
+
+    // List of known authentication cookies to explicitly clear
+    const authCookies = [
+      "adminId",
+      "hospitalId",
+      "adminUsername",
+      "adminPassword",
+      "fallbackMode",
+      "sessionToken",
+      "authToken",
+      "refreshToken",
+    ]
+
+    // Clear known authentication cookies
+    for (const cookieName of authCookies) {
+      cookies().set(cookieName, "", cookieOptions)
+      console.log(`Cleared cookie: ${cookieName}`)
+    }
+
+    // Clear any other session-related cookies that might exist
+    let additionalCookiesCleared = 0
+    for (const cookie of allCookies) {
+      // Skip cookies we've already cleared
+      if (authCookies.includes(cookie.name)) {
+        continue
+      }
+
+      // Clear cookies that match authentication patterns
+      if (
+        cookie.name.toLowerCase().includes("session") ||
+        cookie.name.toLowerCase().includes("token") ||
+        cookie.name.toLowerCase().includes("auth") ||
+        cookie.name.toLowerCase().includes("login") ||
+        cookie.name.toLowerCase().includes("user") ||
+        cookie.name.toLowerCase().includes("admin")
+      ) {
+        cookies().set(cookie.name, "", cookieOptions)
+        additionalCookiesCleared++
+      }
+    }
+
+    console.log(`Cleared ${additionalCookiesCleared} additional cookies`)
+
+    // Try clearing with different paths for thoroughness
+    const additionalPaths = ["/dashboard", "/login", "/register", "/api"]
+    for (const path of additionalPaths) {
+      const pathOptions = { ...cookieOptions, path }
+      for (const cookieName of authCookies) {
+        cookies().set(cookieName, "", pathOptions)
+      }
+    }
+
+    // Log the logout for audit purposes
+    console.log("User session cleared successfully")
+
+    return true
+  } catch (error) {
+    console.error("Error clearing session:", error)
+    throw logError(error, "Clear Session")
+  }
+}
+
+// Authentication middleware
+export async function requireAuth() {
+  try {
+    const session = await getSession()
+    if (!session) {
+      throw new AppError(ErrorType.AUTHENTICATION, "Authentication required")
+    }
+    return session
+  } catch (error) {
+    // Convert any error to an authentication error for consistent handling
+    if (error instanceof AppError && error.type === ErrorType.AUTHENTICATION) {
+      throw error
+    }
+    throw new AppError(ErrorType.AUTHENTICATION, "Authentication failed", { cause: error })
+  }
+}
+
+// Login function
+export async function login(username: string, password: string) {
+  try {
+    const admin = await verifyAdminCredentials(username, password)
+
+    if (!admin) {
+      throw new AppError(ErrorType.AUTHENTICATION, "Invalid credentials")
+    }
+
+    const sessionCreated = await createSession(admin.admin_id, admin.hospital_id, username, password)
+
+    if (!sessionCreated) {
+      throw new AppError(ErrorType.SERVER, "Failed to create session")
+    }
+
+    return { success: true }
+  } catch (error) {
+    // If this is a database connection error, we should still throw it
+    // but it will be handled specially in the login API route
+    if (error instanceof AppError && error.type === ErrorType.DATABASE_CONNECTION) {
+      throw error
+    }
+
+    throw logError(error, "Login")
+  }
+}
+
+// Register function
+export async function register(username: string, password: string, hospitalId: number) {
+  try {
+    const result = await registerAdmin(username, password, hospitalId)
+
+    if (!result.success) {
+      throw new AppError(ErrorType.VALIDATION, "Registration failed")
+    }
+
+    return { success: true }
+  } catch (error) {
+    throw logError(error, "Register")
+  }
+}
+
+// Logout function
+export async function logout() {
+  try {
+    await clearSession()
+    return { success: true }
+  } catch (error) {
+    throw logError(error, "Logout")
+  }
+}
+
+// Check if the user is authenticated
+export async function isAuthenticated() {
+  try {
+    const session = await getSession()
+    return !!session
+  } catch (error) {
+    console.error("Error checking authentication:", error)
+    return false
+  }
+}
+
+// Authentication middleware for API routes
+export async function requireApiAuth(
+  request: NextRequest,
+): Promise<{ success: boolean; hospitalId?: number; error?: string }> {
+  try {
+    const session = await getSession()
+
+    if (!session) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    return { success: true, hospitalId: session.hospitalId }
+  } catch (error) {
+    console.error("API authentication error:", error)
+    return { success: false, error: "Internal server error" }
   }
 }

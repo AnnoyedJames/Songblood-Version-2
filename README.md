@@ -1,97 +1,36 @@
-# Blood Bank Management System
+# Songblood admin portal
 
-A comprehensive system for managing blood inventory across hospitals.
+*Automatically synced with your [v0.dev](https://v0.dev) deployments*
 
-## Features
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/james-michael-gamppers-projects/v0-songblood-admin-portal)
+[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/vFtitZqujdu)
 
-- User authentication and authorization
-- Blood inventory management
-- Search and filtering capabilities
-- Data recovery and soft deletion
-- Hospital-specific data access
+## Overview
 
-## Getting Started
+This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
+Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
 
-### Prerequisites
+## Deployment
 
-- Node.js 18 or later
-- PostgreSQL database (we use Neon for serverless PostgreSQL)
+Your project is live at:
 
-### Environment Variables
+**[https://vercel.com/james-michael-gamppers-projects/v0-songblood-admin-portal](https://vercel.com/james-michael-gamppers-projects/v0-songblood-admin-portal)**
 
-Create a `.env.local` file with the following variables:
+## Build your app
 
-\`\`\`
-DATABASE_URL=your_postgres_connection_string
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
-\`\`\`
+Continue building your app on:
 
-### Installation
+**[https://v0.dev/chat/projects/vFtitZqujdu](https://v0.dev/chat/projects/vFtitZqujdu)**
 
-1. Clone the repository
-2. Install dependencies:
+## How It Works
 
-\`\`\`bash
-npm install
-\`\`\`
+1. Create and modify your project using [v0.dev](https://v0.dev)
+2. Deploy your chats from the v0 interface
+3. Changes are automatically pushed to this repository
+4. Vercel deploys the latest version from this repository
 
-3. Initialize the database:
+## Recent Updates
 
-\`\`\`bash
-psql -f scripts/init-db.sql your_database_name
-\`\`\`
-
-4. Hash any plain text passwords:
-
-\`\`\`bash
-npx ts-node scripts/hash-passwords.ts
-\`\`\`
-
-5. Run the development server:
-
-\`\`\`bash
-npm run dev
-\`\`\`
-
-### Production Deployment
-
-1. Set up environment variables on your hosting platform
-2. Build the application:
-
-\`\`\`bash
-npm run build
-\`\`\`
-
-3. Start the production server:
-
-\`\`\`bash
-npm start
-\`\`\`
-
-## Database Schema
-
-The application uses the following tables:
-
-- `admins`: User accounts for hospital administrators
-- `admin_sessions`: Session management for authenticated users
-- `hospitals`: Hospital information
-- `redblood_inventory`: Red blood cell inventory
-- `plasma_inventory`: Plasma inventory
-- `platelets_inventory`: Platelets inventory
-
-## Security
-
-- Passwords are hashed using bcrypt
-- Session tokens are randomly generated
-- Hospital-specific data access controls
-- Input validation and sanitization
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-\`\`\`
-
-Let's remove the debug pages and endpoints:
-
-```typescriptreact file="app/debug/page.tsx" isDeleted="true"
-...deleted...
+### Database Configuration
+- Removed deprecated `fetchConnectionCache` option from Neon database configuration as it's now always set to `true` by default.
+- Optimized database connection settings for better performance and reliability.

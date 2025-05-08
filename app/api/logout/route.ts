@@ -1,18 +1,40 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { logout } from "@/lib/auth"
+import { NextResponse } from "next/server"
+import { clearSession } from "@/lib/auth"
+import { AppError, ErrorType, logError } from "@/lib/error-handling"
 
-export async function POST(request: NextRequest) {
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
+
+export async function POST() {
   try {
-    // Call the logout function to invalidate the session
-    await logout()
+    await clearSession()
 
-    // Clear the session cookie
-    cookies().delete("session_token")
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, message: "Logged out successfully" })
   } catch (error) {
-    console.error("Logout error:", error)
-    return NextResponse.json({ error: "Logout failed" }, { status: 500 })
+    console.error("Logout API error:", error)
+
+    // Handle different error types
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          type: error.type,
+        },
+        { status: 500 },
+      )
+    }
+
+    // Handle unexpected errors
+    const appError = logError(error, "Logout API")
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+        type: ErrorType.SERVER,
+        message: appError.message,
+      },
+      { status: 500 },
+    )
   }
 }

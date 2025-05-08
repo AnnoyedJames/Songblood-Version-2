@@ -1,39 +1,55 @@
 /**
- * Utility functions for environment detection and configuration
+ * Safely access environment variables
+ * This utility prevents client-side access to server-only environment variables
  */
 
-/**
- * Checks if the application is running in a production environment
- */
-export function isProductionEnvironment(): boolean {
-  return process.env.VERCEL_ENV === "production" || process.env.NEXT_PUBLIC_VERCEL_ENV === "production"
-}
+// Check if we're running on the client
+const isClient = typeof window !== "undefined"
 
 /**
- * Gets the current environment name
+ * Safely get an environment variable
+ * Returns undefined if the variable doesn't exist or if trying to access server-only variables on the client
  */
-export function getEnvironmentName(): string {
-  if (isProductionEnvironment()) {
-    return "production"
-  } else if (process.env.VERCEL_ENV === "development" || process.env.NODE_ENV === "development") {
-    return "development"
-  } else {
-    return "staging"
+export function getEnvVariable(key: string): string | undefined {
+  // If we're on the client and the variable isn't prefixed with NEXT_PUBLIC_, return undefined
+  if (isClient && !key.startsWith("NEXT_PUBLIC_")) {
+    console.warn(`Attempted to access server-only environment variable '${key}' on the client`)
+    return undefined
   }
+
+  return process.env[key]
 }
 
 /**
- * Checks if the application is running in a preview environment
+ * Check if we're in a development or preview environment
  */
-export function isPreviewEnvironment(): boolean {
-  return process.env.VERCEL_ENV === "preview" || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview"
+export function isDevOrPreview(): boolean {
+  // Always consider it a development environment on the client
+  if (isClient) return true
+
+  const nodeEnv = process.env.NODE_ENV
+  const vercelEnv = process.env.VERCEL_ENV
+
+  return nodeEnv !== "production" || vercelEnv === "preview" || vercelEnv === "development"
 }
 
 /**
- * Checks if a feature flag is enabled
- * @param flagName The name of the feature flag
+ * Get the database URL safely
  */
-export function isFeatureEnabled(flagName: string): boolean {
-  const flag = process.env[`FEATURE_${flagName.toUpperCase()}`]
-  return flag === "true" || flag === "1"
+export function getDatabaseUrl(): string | undefined {
+  // Only attempt to access on the server
+  if (isClient) return undefined
+
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL
+}
+
+/**
+ * Check if we should use fallback mode
+ */
+export function shouldUseFallbackMode(): boolean {
+  // Always use fallback on the client
+  if (isClient) return true
+
+  // Use fallback in development or preview environments
+  return isDevOrPreview()
 }

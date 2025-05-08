@@ -1,77 +1,45 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
+import { restoreBloodEntry } from "@/lib/db-diagnostics"
 import { AppError, ErrorType } from "@/lib/error-handling"
-import { sql } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
+    // Verify authentication
     const session = await requireAuth()
+    if (!session) {
+      return NextResponse.json({ success: false, error: "Authentication required" }, { status: 401 })
+    }
 
-    // Parse request body
-    const body = await request.json()
-    const { bagId, entryType } = body
+    // Get the hospital ID from the session
+    const { hospitalId } = session
 
-    // Validate required fields
+    // Parse the request body
+    const { bagId, entryType } = await request.json()
+
+    // Validate the parameters
     if (!bagId || !entryType) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Bag ID and entry type are required" }, { status: 400 })
     }
 
-    // Determine which table to update based on entry type
-    let tableName
-    if (entryType === "RedBlood") {
-      tableName = "redblood_inventory"
-    } else if (entryType === "Plasma") {
-      tableName = "plasma_inventory"
-    } else if (entryType === "Platelets") {
-      tableName = "platelets_inventory"
+    // Restore the entry
+    const result = await restoreBloodEntry(bagId, entryType, hospitalId)
+
+    if (result.success) {
+      return NextResponse.json({ success: true })
     } else {
-      return NextResponse.json({ error: "Invalid entry type" }, { status: 400 })
+      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
     }
-
-    // Get the hospital ID of the entry to ensure the user has permission
-    const entryResult = await sql(
-      `
-      SELECT hospital_id FROM ${tableName} WHERE bag_id = $1
-    `,
-      bagId,
-    )
-
-    if (entryResult.length === 0) {
-      return NextResponse.json({ error: "Entry not found" }, { status: 404 })
-    }
-
-    const entryHospitalId = entryResult[0].hospital_id
-
-    // Verify the user has access to this hospital's data
-    if (entryHospitalId !== session.hospitalId) {
-      return NextResponse.json({ error: "Unauthorized access to hospital data" }, { status: 403 })
-    }
-
-    // Restore the entry by setting active = true
-    await sql(
-      `
-      UPDATE ${tableName}
-      SET active = true
-      WHERE bag_id = $1
-    `,
-      bagId,
-    )
-
-    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error restoring entry:", error)
+    console.error("Error restoring blood entry:", error)
 
-    // Handle specific error types
     if (error instanceof AppError) {
-      if (error.type === ErrorType.AUTHENTICATION) {
-        return NextResponse.json({ error: "Authentication required" }, { status: 401 })
-      } else if (error.type === ErrorType.DATABASE_CONNECTION) {
-        return NextResponse.json({ error: "Database connection error" }, { status: 503 })
-      }
+      return NextResponse.json(
+        { success: false, error: error.message, details: error.details },
+        { status: error.type === ErrorType.AUTHENTICATION ? 401 : 400 },
+      )
     }
 
-    // Default error response
-    return NextResponse.json({ error: "Failed to restore entry" }, { status: 500 })
+    return NextResponse.json({ success: false, error: "Failed to restore blood entry" }, { status: 500 })
   }
 }

@@ -1,39 +1,60 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { searchDonors } from "@/lib/db"
-import { requireAuth } from "@/lib/auth"
-import { AppError, ErrorType } from "@/lib/error-handling"
+import { cookies } from "next/headers"
+import { AppError, ErrorType, logError } from "@/lib/error-handling"
 
-export async function GET(request: NextRequest) {
+// Force dynamic rendering for API routes that use cookies
+export const dynamic = "force-dynamic"
+
+export async function GET(request: Request) {
   try {
-    // Get query parameters
-    const url = new URL(request.url)
-    const query = url.searchParams.get("query") || ""
-    const showInactive = url.searchParams.get("showInactive") === "true"
+    // Get session
+    const cookieStore = cookies()
+    const adminId = cookieStore.get("adminId")?.value
+    const hospitalId = cookieStore.get("hospitalId")?.value
 
-    // Log the search request for debugging
-    console.log(`Search request: query="${query}", showInactive=${showInactive}`)
-
-    // Check authentication
-    await requireAuth()
-
-    // Search for donors
-    const results = await searchDonors(query, showInactive)
-
-    // Return the results
-    return NextResponse.json({ results })
-  } catch (error) {
-    console.error("Error in search API:", error)
-
-    // Handle specific error types
-    if (error instanceof AppError) {
-      if (error.type === ErrorType.AUTHENTICATION) {
-        return NextResponse.json({ error: "Authentication required" }, { status: 401 })
-      } else if (error.type === ErrorType.DATABASE_CONNECTION) {
-        return NextResponse.json({ error: "Database connection error" }, { status: 503 })
-      }
+    if (!adminId || !hospitalId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+          type: ErrorType.AUTHENTICATION,
+        },
+        { status: 401 },
+      )
     }
 
-    // Default error response
-    return NextResponse.json({ error: "Failed to search donors" }, { status: 500 })
+    // Get search query and filter parameters
+    const url = new URL(request.url)
+    const query = url.searchParams.get("q") || ""
+    const showInactive = url.searchParams.get("showInactive") === "true"
+
+    // Search donors
+    const results = await searchDonors(query, showInactive)
+
+    return NextResponse.json({ success: true, results })
+  } catch (error) {
+    // Handle different error types
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          type: error.type,
+        },
+        { status: error.type === ErrorType.AUTHENTICATION ? 401 : 500 },
+      )
+    }
+
+    // Handle unexpected errors
+    const appError = logError(error, "Search API")
+    return NextResponse.json(
+      {
+        success: false,
+        error: appError.message,
+        type: appError.type,
+      },
+      { status: 500 },
+    )
   }
 }
