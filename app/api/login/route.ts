@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { login } from "@/lib/auth"
 import { AppError, ErrorType, logError } from "@/lib/error-handling"
-import { getConnectionErrorMessage } from "@/lib/db"
+import { getConnectionErrorMessage } from "@/lib/db-connection"
 
 // Force dynamic rendering for API routes that use cookies
 export const dynamic = "force-dynamic"
