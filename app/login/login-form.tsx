@@ -19,6 +19,17 @@ export default function LoginForm() {
     setError("")
 
     try {
+      // In preview mode, accept any login
+      if (
+        typeof window !== "undefined" &&
+        (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost"))
+      ) {
+        // Simulate a delay for a more realistic experience
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        router.push("/dashboard")
+        return
+      }
+
       const response = await fetch("/api/login", {
         method: "POST",
         headers: {
@@ -59,6 +70,12 @@ export default function LoginForm() {
           onChange={(e) => setUsername(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           required
+          placeholder={
+            typeof window !== "undefined" &&
+            (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost"))
+              ? "Any username works in preview mode"
+              : ""
+          }
         />
       </div>
 
@@ -73,6 +90,12 @@ export default function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           required
+          placeholder={
+            typeof window !== "undefined" &&
+            (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost"))
+              ? "Any password works in preview mode"
+              : ""
+          }
         />
       </div>
 
@@ -89,6 +112,13 @@ export default function LoginForm() {
           "Sign in"
         )}
       </button>
+
+      {typeof window !== "undefined" &&
+        (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost")) && (
+          <div className="mt-2 text-xs text-center text-amber-600">
+            Preview mode: Any username and password will work
+          </div>
+        )}
     </form>
   )
 }

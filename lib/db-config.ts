@@ -95,3 +95,12 @@ export function createQueryParams(params: Record<string, any>): string {
     })
     .join("&")
 }
+
+// Function to check if running in preview environment
+export function isPreviewEnvironment(): boolean {
+  return (
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    process.env.IS_FALLBACK_MODE === "true" ||
+    process.env.NODE_ENV === "development"
+  )
+}

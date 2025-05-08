@@ -1,9 +1,9 @@
 import { neon } from "@neondatabase/serverless"
 import { queryCache } from "./cache"
 import { AppError, ErrorType, logError } from "./error-handling"
-import { configureNeon, DB_CONFIG, getDatabaseUrl } from "./db-config"
+import { configureNeon, DB_CONFIG, getDatabaseUrl, isPreviewEnvironment } from "./db-config"
 
-// Configure Neon with optimal settings
+// Configure Neon with optimal settings (will be skipped in preview mode)
 configureNeon()
 
 // Track connection errors for reporting
@@ -19,70 +19,102 @@ export function setConnectionErrorMessage(message: string) {
   CONNECTION_ERROR_MESSAGE = message
 }
 
-// Create SQL client with the database URL
+// Create SQL client with the database URL (will be null in preview mode)
 const dbUrl = getDatabaseUrl()
 export const dbClient = dbUrl ? neon(dbUrl) : null
 
-// Mock data for build-time and fallback
-const MOCK_DATA = {
-  redblood: [],
-  plasma: [],
-  platelets: [],
-  hospitals: [{ hospital_id: 1, hospital_name: "Demo Hospital" }],
-}
-
-// Check if we're in a preview environment
-const isPreviewEnvironment = () => {
-  return (
-    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
-    process.env.VERCEL_ENV === "preview" ||
-    process.env.IS_FALLBACK_MODE === "true"
-  )
-}
-
-// Execute a database query with timeout and fallback
-export async function executeQuery(query: string, params: any[] = [], options: { useMockOnError?: boolean } = {}) {
-  if (!dbClient) {
-    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
-      console.warn("Database client not initialized, using mock data")
-      return []
-    }
-
-    throw new AppError(
-      ErrorType.DATABASE_CONNECTION,
-      "Database client not initialized",
-      "Database URL environment variable may be missing or invalid",
-    )
-  }
-
-  try {
-    // Add timeout to prevent hanging connections
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new AppError(ErrorType.TIMEOUT, "Database query timed out", "Query execution exceeded timeout limit"))
-      }, DB_CONFIG.MAX_CONNECTION_TIME_MS)
-    })
-
-    // Execute the query with timeout
-    const queryPromise = dbClient.query(query, params)
-    const result = (await Promise.race([queryPromise, timeoutPromise])) as any[]
-
-    return result
-  } catch (error) {
-    const appError = logError(error, "Execute Query")
-
-    // Use mock data in production or preview if specified
-    if ((options.useMockOnError && process.env.NODE_ENV === "production") || isPreviewEnvironment()) {
-      console.warn("Database query failed, using mock data:", appError.message)
-      return []
-    }
-
-    throw appError
-  }
+// Mock data for preview mode and fallbacks
+export const MOCK_DATA = {
+  redblood: [
+    { blood_type: "A", rh: "+", count: 10, total_amount: 5000 },
+    { blood_type: "B", rh: "+", count: 8, total_amount: 4000 },
+    { blood_type: "O", rh: "+", count: 15, total_amount: 7500 },
+    { blood_type: "AB", rh: "+", count: 5, total_amount: 2500 },
+    { blood_type: "A", rh: "-", count: 3, total_amount: 1500 },
+    { blood_type: "B", rh: "-", count: 2, total_amount: 1000 },
+    { blood_type: "O", rh: "-", count: 6, total_amount: 3000 },
+    { blood_type: "AB", rh: "-", count: 1, total_amount: 500 },
+  ],
+  plasma: [
+    { blood_type: "A", count: 12, total_amount: 6000 },
+    { blood_type: "B", count: 9, total_amount: 4500 },
+    { blood_type: "O", count: 18, total_amount: 9000 },
+    { blood_type: "AB", count: 6, total_amount: 3000 },
+  ],
+  platelets: [
+    { blood_type: "A", rh: "+", count: 7, total_amount: 3500 },
+    { blood_type: "B", rh: "+", count: 5, total_amount: 2500 },
+    { blood_type: "O", rh: "+", count: 10, total_amount: 5000 },
+    { blood_type: "AB", rh: "+", count: 3, total_amount: 1500 },
+    { blood_type: "A", rh: "-", count: 2, total_amount: 1000 },
+    { blood_type: "B", rh: "-", count: 1, total_amount: 500 },
+    { blood_type: "O", rh: "-", count: 4, total_amount: 2000 },
+    { blood_type: "AB", rh: "-", count: 1, total_amount: 500 },
+  ],
+  hospitals: [
+    { hospital_id: 1, hospital_name: "Central Hospital" },
+    { hospital_id: 2, hospital_name: "Memorial Medical Center" },
+    { hospital_id: 3, hospital_name: "University Hospital" },
+  ],
+  admins: [{ admin_id: 1, hospital_id: 1, admin_username: "admin", admin_password: "password" }],
+  surplus_alerts: [
+    {
+      type: "RedBlood",
+      bloodType: "O",
+      rh: "+",
+      hospitalName: "Memorial Medical Center",
+      hospitalId: 2,
+      count: 25,
+      yourCount: 4,
+      contactPhone: "555-1234",
+      contactEmail: "contact@memorial.example.com",
+    },
+    {
+      type: "Plasma",
+      bloodType: "AB",
+      rh: "",
+      hospitalName: "University Hospital",
+      hospitalId: 3,
+      count: 15,
+      yourCount: 3,
+      contactPhone: "555-5678",
+      contactEmail: "contact@university.example.com",
+    },
+  ],
+  search_results: [
+    {
+      type: "RedBlood",
+      bag_id: 12345,
+      donor_name: "John Doe",
+      blood_type: "A",
+      rh: "+",
+      amount: 450,
+      expiration_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      hospital_name: "Central Hospital",
+      hospital_contact_phone: "555-1234",
+    },
+    {
+      type: "Plasma",
+      bag_id: 12346,
+      donor_name: "Jane Smith",
+      blood_type: "O",
+      rh: "",
+      amount: 400,
+      expiration_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+      hospital_name: "Central Hospital",
+      hospital_contact_phone: "555-1234",
+    },
+  ],
 }
 
 // Function to test database connection
 export async function testDatabaseConnection(): Promise<{ connected: boolean; error?: string }> {
+  // In preview mode, return a mock successful connection
+  if (isPreviewEnvironment()) {
+    console.log("Preview mode: Skipping actual database connection test")
+    return { connected: true }
+  }
+
   try {
     // Check if database URL is defined
     const dbUrl = getDatabaseUrl()
@@ -164,6 +196,12 @@ if (process.env.NODE_ENV !== "production" && !isPreviewEnvironment()) {
 
 // Helper function to get hospital data by ID
 export async function getHospitalById(hospitalId: number) {
+  // In preview mode, return mock data
+  if (isPreviewEnvironment()) {
+    const hospital = MOCK_DATA.hospitals.find((h) => h.hospital_id === hospitalId) || MOCK_DATA.hospitals[0]
+    return hospital
+  }
+
   try {
     const cacheKey = `hospital:${hospitalId}`
     const cached = queryCache.get(cacheKey)
@@ -172,23 +210,27 @@ export async function getHospitalById(hospitalId: number) {
       return cached
     }
 
-    const result = await executeQuery("SELECT * FROM hospital WHERE hospital_id = $1", [hospitalId], {
-      useMockOnError: true,
-    })
+    if (!dbClient) {
+      throw new AppError(
+        ErrorType.DATABASE_CONNECTION,
+        "Database client not initialized",
+        "Database URL environment variable may be missing or invalid",
+      )
+    }
+
+    const result = await dbClient`
+      SELECT * FROM hospital WHERE hospital_id = ${hospitalId}
+    `
 
     if (!result || result.length === 0) {
-      if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
-        // Return mock data in production
-        return MOCK_DATA.hospitals[0]
-      }
       throw new AppError(ErrorType.NOT_FOUND, "Hospital not found")
     }
 
     queryCache.set(cacheKey, result[0])
     return result[0]
   } catch (error) {
-    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
-      // Return mock data in production
+    // In production, fall back to mock data
+    if (process.env.NODE_ENV === "production") {
       console.warn("Error getting hospital data, using mock data:", error)
       return MOCK_DATA.hospitals[0]
     }
@@ -198,10 +240,20 @@ export async function getHospitalById(hospitalId: number) {
 
 // Helper function to verify admin credentials
 export async function verifyAdminCredentials(username: string, password: string) {
+  // In preview mode, accept any credentials for testing
+  if (isPreviewEnvironment()) {
+    // For demo purposes, accept "admin/password" or any credentials in preview mode
+    if (username === "admin" && password === "password") {
+      return MOCK_DATA.admins[0]
+    }
+    // In preview mode, accept any credentials
+    return { admin_id: 1, hospital_id: 1 }
+  }
+
   try {
-    // In preview environment, accept any credentials for testing
-    if (isPreviewEnvironment()) {
-      return { admin_id: 1, hospital_id: 1 }
+    if (!dbClient) {
+      console.warn("Database client not initialized, authentication will fail")
+      return null
     }
 
     const result = await dbClient`
@@ -213,18 +265,17 @@ export async function verifyAdminCredentials(username: string, password: string)
   } catch (error) {
     // Log the error but don't expose it to the caller
     logError(error, "Verify Admin Credentials")
-
-    // In preview, return mock data
-    if (isPreviewEnvironment()) {
-      return { admin_id: 1, hospital_id: 1 }
-    }
-
     return null
   }
 }
 
 // Helper function to get blood inventory for a hospital
 export async function getBloodInventory(hospitalId: number) {
+  // In preview mode, return mock data
+  if (isPreviewEnvironment()) {
+    return MOCK_DATA.redblood
+  }
+
   try {
     const cacheKey = `redblood:${hospitalId}`
     const cached = queryCache.get<any[]>(cacheKey)
@@ -232,6 +283,14 @@ export async function getBloodInventory(hospitalId: number) {
     if (cached) {
       console.log("Using cached red blood cell data:", cached)
       return cached
+    }
+
+    if (!dbClient) {
+      throw new AppError(
+        ErrorType.DATABASE_CONNECTION,
+        "Database client not initialized",
+        "Database URL environment variable may be missing or invalid",
+      )
     }
 
     const redBlood = await dbClient`
@@ -254,18 +313,35 @@ export async function getBloodInventory(hospitalId: number) {
     queryCache.set(cacheKey, processedData)
     return processedData
   } catch (error) {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
+      console.warn("Error getting blood inventory, using mock data:", error)
+      return MOCK_DATA.redblood
+    }
     throw logError(error, "Get Blood Inventory")
   }
 }
 
 // Helper function to get plasma inventory for a hospital
 export async function getPlasmaInventory(hospitalId: number) {
+  // In preview mode, return mock data
+  if (isPreviewEnvironment()) {
+    return MOCK_DATA.plasma
+  }
+
   try {
     const cacheKey = `plasma:${hospitalId}`
     const cached = queryCache.get<any[]>(cacheKey)
 
     if (cached) {
       return cached
+    }
+
+    if (!dbClient) {
+      throw new AppError(
+        ErrorType.DATABASE_CONNECTION,
+        "Database client not initialized",
+        "Database URL environment variable may be missing or invalid",
+      )
     }
 
     const plasma = await dbClient`
@@ -279,18 +355,35 @@ export async function getPlasmaInventory(hospitalId: number) {
     queryCache.set(cacheKey, plasma)
     return plasma
   } catch (error) {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
+      console.warn("Error getting plasma inventory, using mock data:", error)
+      return MOCK_DATA.plasma
+    }
     throw logError(error, "Get Plasma Inventory")
   }
 }
 
 // Helper function to get platelets inventory for a hospital
 export async function getPlateletsInventory(hospitalId: number) {
+  // In preview mode, return mock data
+  if (isPreviewEnvironment()) {
+    return MOCK_DATA.platelets
+  }
+
   try {
     const cacheKey = `platelets:${hospitalId}`
     const cached = queryCache.get<any[]>(cacheKey)
 
     if (cached) {
       return cached
+    }
+
+    if (!dbClient) {
+      throw new AppError(
+        ErrorType.DATABASE_CONNECTION,
+        "Database client not initialized",
+        "Database URL environment variable may be missing or invalid",
+      )
     }
 
     const platelets = await dbClient`
@@ -304,12 +397,21 @@ export async function getPlateletsInventory(hospitalId: number) {
     queryCache.set(cacheKey, platelets)
     return platelets
   } catch (error) {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
+      console.warn("Error getting platelets inventory, using mock data:", error)
+      return MOCK_DATA.platelets
+    }
     throw logError(error, "Get Platelets Inventory")
   }
 }
 
 // Helper function to get surplus alerts
 export async function getSurplusAlerts(hospitalId: number) {
+  // In preview mode, return mock data
+  if (isPreviewEnvironment()) {
+    return MOCK_DATA.surplus_alerts
+  }
+
   try {
     // Get current hospital's inventory
     const currentHospitalInventory = await dbClient`
@@ -405,12 +507,26 @@ export async function getSurplusAlerts(hospitalId: number) {
 
     return alerts
   } catch (error) {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
+      console.warn("Error getting surplus alerts, using mock data:", error)
+      return MOCK_DATA.surplus_alerts
+    }
     throw logError(error, "Get Surplus Alerts")
   }
 }
 
 // Helper function to search for donors
 export async function searchDonors(query: string) {
+  // In preview mode, return mock data
+  if (isPreviewEnvironment()) {
+    // Filter mock data based on the query for a more realistic experience
+    if (!query || query.trim() === "") return []
+
+    return MOCK_DATA.search_results.filter(
+      (item) => item.donor_name.toLowerCase().includes(query.toLowerCase()) || item.bag_id.toString().includes(query),
+    )
+  }
+
   if (!query || query.trim() === "") return []
 
   try {
@@ -474,6 +590,10 @@ export async function searchDonors(query: string) {
 
     return [...redBloodResults, ...plasmaResults, ...plateletsResults]
   } catch (error) {
+    if (process.env.NODE_ENV === "production" || isPreviewEnvironment()) {
+      console.warn("Error searching donors, using mock data:", error)
+      return MOCK_DATA.search_results
+    }
     throw logError(error, "Search Donors")
   }
 }

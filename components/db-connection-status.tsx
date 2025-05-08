@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, Loader2, Info } from "lucide-react"
 
 export default function DbConnectionStatus() {
-  const [status, setStatus] = useState<"loading" | "connected" | "error">("loading")
+  const [status, setStatus] = useState<"loading" | "connected" | "error" | "preview">("loading")
   const [message, setMessage] = useState<string>("")
   const [showSuccess, setShowSuccess] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
@@ -33,6 +33,13 @@ export default function DbConnectionStatus() {
 
         const data = await response.json()
         console.log("DB status response:", data)
+
+        // Check if we're in preview mode
+        if (data.isPreview) {
+          setStatus("preview")
+          setMessage(data.message || "Preview mode: Using mock data")
+          return
+        }
 
         if (data.connected) {
           setStatus("connected")
@@ -74,6 +81,15 @@ export default function DbConnectionStatus() {
       <div className="flex items-center justify-center p-3 bg-gray-100 rounded-md mb-4">
         <Loader2 className="h-4 w-4 mr-2 animate-spin text-gray-500" />
         <span className="text-sm text-gray-600">Checking database connection...</span>
+      </div>
+    )
+  }
+
+  if (status === "preview") {
+    return (
+      <div className="flex items-center p-3 bg-amber-50 text-amber-700 rounded-md mb-4 border border-amber-200">
+        <Info className="h-4 w-4 mr-2 flex-shrink-0" />
+        <div className="text-sm flex-grow">{message}</div>
       </div>
     )
   }
