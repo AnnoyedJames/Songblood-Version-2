@@ -1,75 +1,74 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react"
+import { useEffect, useState } from "react"
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
-export default function DatabaseConnectionStatus() {
+export default function DbConnectionStatus() {
   const [status, setStatus] = useState<"loading" | "connected" | "error">("loading")
   const [message, setMessage] = useState<string>("")
-  const [isChecking, setIsChecking] = useState(false)
-
-  const checkConnection = async () => {
-    setIsChecking(true)
-    try {
-      const response = await fetch("/api/db-status", {
-        method: "GET",
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      })
-      const data = await response.json()
-
-      if (data.connected) {
-        setStatus("connected")
-        setMessage("Database connected")
-      } else {
-        setStatus("error")
-        setMessage(data.error || "Unable to connect to database")
-      }
-    } catch (error) {
-      setStatus("error")
-      setMessage("Error checking database connection")
-      console.error("Error checking database connection:", error)
-    } finally {
-      setIsChecking(false)
-    }
-  }
+  const [showSuccess, setShowSuccess] = useState(false); // Initialize to false
 
   useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const response = await fetch("/api/db-status")
+        const data = await response.json()
+
+        if (data.connected) {
+          setStatus("connected")
+          setMessage(data.message || "Database connected successfully")
+        } else {
+          setStatus("error")
+          setMessage(data.message || "Unable to connect to database")
+        }
+      } catch (error) {
+        setStatus("error")
+        setMessage("Error checking database connection")
+        console.error("Error checking DB status:", error)
+      }
+    }
+
     checkConnection()
-    // Set up interval to check connection every 30 seconds
-    const interval = setInterval(checkConnection, 30000)
-    return () => clearInterval(interval)
   }, [])
 
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      {status === "loading" ? (
-        <div className="flex items-center gap-1 text-yellow-600">
-          <RefreshCw className="h-4 w-4 animate-spin" />
-          <span>Checking database connection...</span>
-        </div>
-      ) : status === "connected" ? (
-        <div className="flex items-center gap-1 text-green-600">
-          <CheckCircle2 className="h-4 w-4" />
-          <span>Database connected</span>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1 text-red-600">
-          <AlertCircle className="h-4 w-4" />
-          <span>Database error: {message}</span>
-          <button
-            onClick={checkConnection}
-            disabled={isChecking}
-            className="ml-2 rounded-md bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
-            aria-label="Retry database connection"
-          >
-            {isChecking ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Retry"}
-          </button>
-        </div>
-      )}
-    </div>
-  )
+  useEffect(() => {
+    if (status === "connected") {
+      setShowSuccess(true);
+      const timer = setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowSuccess(false); // Reset showSuccess when status is not "connected"
+    }
+  }, [status]);
+
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center p-3 bg-gray-100 rounded-md mb-4">
+        <Loader2 className="h-4 w-4 mr-2 animate-spin text-gray-500" />
+        <span className="text-sm text-gray-600">Checking database connection...</span>
+      </div>
+    )
+  }
+
+  if (status === "error") {
+    return (
+      <div className="flex items-center p-3 bg-red-50 text-red-700 rounded-md mb-4 border border-red-200">
+        <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
+        <div className="text-sm">{message}</div>
+      </div>
+    )
+  }
+
+  if (status === "connected" && showSuccess) {
+    return (
+      <div className="flex items-center p-3 bg-green-50 text-green-700 rounded-md mb-4 border border-green-200">
+        <CheckCircle2 className="h-4 w-4 mr-2 flex-shrink-0" />
+        <div className="text-sm">{message}</div>
+      </div>
+    )
+  }
+
+  return null
 }

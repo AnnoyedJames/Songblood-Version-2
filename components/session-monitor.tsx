@@ -2,86 +2,57 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
 
 export default function SessionMonitor() {
   const router = useRouter()
-  const { toast } = useToast()
-  const [isCheckingSession, setIsCheckingSession] = useState(false)
+  const [lastActivity, setLastActivity] = useState<number>(Date.now())
+  const [isActive, setIsActive] = useState<boolean>(true)
 
-  // Function to check session validity
-  const checkSession = async () => {
-    if (isCheckingSession) return
-
-    setIsCheckingSession(true)
-
-    try {
-      const response = await fetch("/api/check-session", {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      })
-
-      if (!response.ok) {
-        handleSessionExpired()
-        return
-      }
-
-      const data = await response.json()
-
-      if (!data.authenticated) {
-        handleSessionExpired()
-      }
-    } catch (error) {
-      console.error("Error checking session:", error)
-    } finally {
-      setIsCheckingSession(false)
-    }
-  }
-
-  // Handle session expiration
-  const handleSessionExpired = () => {
-    // Save current URL for redirect after login
-    const currentPath = encodeURIComponent(window.location.pathname + window.location.search)
-
-    toast({
-      title: "Session expired",
-      description: "Your session has expired. Please log in again.",
-      variant: "destructive",
-    })
-
-    // Redirect to login
-    router.push(`/login?reason=session-expired&returnTo=${currentPath}`)
-  }
-
+  // Update last activity time on user interactions
   useEffect(() => {
-    // Skip on login and register pages
-    if (window.location.pathname === "/login" || window.location.pathname === "/register") {
-      return
+    const updateActivity = () => {
+      setLastActivity(Date.now())
+      setIsActive(true)
     }
 
-    // Check session on page load
-    checkSession()
+    // Add event listeners for user activity
+    window.addEventListener("mousemove", updateActivity)
+    window.addEventListener("mousedown", updateActivity)
+    window.addEventListener("keypress", updateActivity)
+    window.addEventListener("touchmove", updateActivity)
+    window.addEventListener("scroll", updateActivity)
 
-    // Set up interval to check session periodically
-    const interval = setInterval(checkSession, 5 * 60 * 1000) // Every 5 minutes
+    // Check session status periodically
+    const checkSessionInterval = setInterval(async () => {
+      try {
+        // Only check if the user has been inactive for more than 1 minute
+        const inactiveTime = Date.now() - lastActivity
+        if (inactiveTime > 60000 && isActive) {
+          const response = await fetch("/api/check-session")
+          const data = await response.json()
 
-    // Set up event listeners for form submissions
-    const handleBeforeSubmit = () => {
-      checkSession()
-    }
-
-    document.addEventListener("submit", handleBeforeSubmit)
+          if (!data.valid) {
+            // Session expired, redirect to login
+            const currentPath = window.location.pathname
+            router.push(`/login?reason=session-timeout&returnTo=${encodeURIComponent(currentPath)}`)
+            setIsActive(false)
+          }
+        }
+      } catch (error) {
+        console.error("Error checking session:", error)
+      }
+    }, 60000) // Check every minute
 
     return () => {
-      clearInterval(interval)
-      document.removeEventListener("submit", handleBeforeSubmit)
+      // Clean up event listeners and interval
+      window.removeEventListener("mousemove", updateActivity)
+      window.removeEventListener("mousedown", updateActivity)
+      window.removeEventListener("keypress", updateActivity)
+      window.removeEventListener("touchmove", updateActivity)
+      window.removeEventListener("scroll", updateActivity)
+      clearInterval(checkSessionInterval)
     }
-  }, [])
+  }, [router, lastActivity, isActive])
 
   // This component doesn't render anything visible
   return null
