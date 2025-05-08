@@ -5,6 +5,11 @@ export function middleware(request: NextRequest) {
   // Log the requested URL for debugging
   console.log("Middleware - Requested URL:", request.nextUrl.pathname)
 
+  // Redirect root path to login page
+  if (request.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/login", request.url))
+  }
+
   // Continue to the requested page
   return NextResponse.next()
 }
