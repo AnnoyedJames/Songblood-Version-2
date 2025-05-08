@@ -7,20 +7,28 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle, Loader2 } from "lucide-react"
+import { ErrorType } from "@/lib/error-handling"
 
-export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
+interface LoginFormProps {
+  returnTo?: string
+}
+
+export default function LoginForm({ returnTo }: LoginFormProps) {
+  const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const router = useRouter()
-  const { toast } = useToast()
+  const [errorType, setErrorType] = useState<ErrorType | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
     setIsLoading(true)
+    setError("")
+    setErrorType(null)
 
     try {
       const response = await fetch("/api/login", {
@@ -31,76 +39,16 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
         body: JSON.stringify({ username, password }),
       })
 
-      // Check if the response is ok before trying to parse JSON
-      if (!response.ok) {
-        // Clone the response before reading it to avoid the "body stream already read" error
-        const responseClone = response.clone()
+      const data = await response.json()
 
-        // Try to parse as JSON first
-        let errorData
-        try {
-          errorData = await responseClone.json()
-        } catch (jsonError) {
-          // If JSON parsing fails, use the status text or a generic message
-          console.error("JSON parsing error:", jsonError)
-
-          setError(`Server error: ${response.status} ${response.statusText || "Unknown error"}`)
-          toast({
-            title: "Login Error",
-            description: "The server returned an invalid response. Please try again later.",
-            variant: "destructive",
-          })
-          return
-        }
-
-        // Handle JSON error responses
-        if (errorData.type === "DATABASE_CONNECTION") {
-          setError("Database connection error. Please try again later.")
-          toast({
-            title: "Connection Error",
-            description: "Unable to connect to the database. Please try again later.",
-            variant: "destructive",
-          })
-        } else if (errorData.type === "AUTHENTICATION") {
-          setError("Invalid username or password")
-          toast({
-            title: "Authentication Failed",
-            description: "Invalid username or password. Please try again.",
-            variant: "destructive",
-          })
-        } else {
-          setError(errorData.error || "An error occurred during login")
-          toast({
-            title: "Login Error",
-            description: errorData.error || "An error occurred during login. Please try again.",
-            variant: "destructive",
-          })
-        }
+      if (!response.ok || !data.success) {
+        setError(data.error || "Login failed. Please check your credentials.")
+        setErrorType(data.type || ErrorType.AUTHENTICATION)
+        setIsLoading(false)
         return
       }
 
-      // For successful responses, parse JSON
-      let data
-      try {
-        data = await response.json()
-      } catch (jsonError) {
-        console.error("Error parsing successful response:", jsonError)
-        setError("Received an invalid response from the server")
-        toast({
-          title: "Login Error",
-          description: "The server returned an invalid response. Please try again later.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Login successful
-      toast({
-        title: "Login Successful",
-        description: "You have been logged in successfully.",
-      })
-
-      // Redirect to the return URL or dashboard
+      // If login is successful and we have a returnTo URL, navigate there
       if (returnTo) {
         const decodedReturnTo = decodeURIComponent(returnTo)
         // Validate the returnTo URL to prevent open redirect vulnerabilities
@@ -110,50 +58,66 @@ export default function LoginForm({ returnTo = "" }: { returnTo?: string }) {
         }
       }
 
+      // Otherwise go to dashboard
       router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
       setError("An unexpected error occurred. Please try again.")
-      toast({
-        title: "Connection Error",
-        description: "Unable to connect to the server. Please check your internet connection.",
-        variant: "destructive",
-      })
-    } finally {
+      setErrorType(ErrorType.SERVER)
       setIsLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-lg shadow-md">
-      <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
-        <Input
-          id="username"
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-          disabled={isLoading}
-          placeholder="Enter your username"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          disabled={isLoading}
-          placeholder="Enter your password"
-        />
-      </div>
-      {error && <div className="text-red-500 text-sm">{error}</div>}
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Logging in..." : "Login"}
-      </Button>
-    </form>
+    <Card>
+      <CardContent className="pt-6">
+        {error && (
+          <Alert variant={errorType === ErrorType.DATABASE_CONNECTION ? "warning" : "destructive"} className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoComplete="username"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              disabled={isLoading}
+            />
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Logging in...
+              </>
+            ) : (
+              "Log in"
+            )}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

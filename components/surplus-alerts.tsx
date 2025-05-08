@@ -1,32 +1,33 @@
-import { Card, CardContent } from "@/components/ui/card"
+import { formatBloodType, getBloodTypeColor } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
-import { Droplets } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertTriangle } from "lucide-react"
 
 type SurplusAlert = {
-  id: number
-  hospital_name: string
-  blood_type: string
-  amount: number
-  created_at: string
-  status: string
+  type: string
+  bloodType: string
+  rh: string
+  hospitalName: string
+  hospitalId: number
+  count: number
+  yourCount: number
 }
 
-interface SurplusAlertsProps {
+type SurplusAlertsProps = {
   alerts: SurplusAlert[]
 }
 
-export default function SurplusAlerts({ alerts = [] }: SurplusAlertsProps) {
-  // Ensure alerts is always an array
-  const safeAlerts = Array.isArray(alerts) ? alerts : []
-
-  if (safeAlerts.length === 0) {
+export default function SurplusAlerts({ alerts }: SurplusAlertsProps) {
+  if (alerts.length === 0) {
     return (
       <Card>
-        <CardContent className="p-6 text-center">
-          <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
-            <Droplets className="h-8 w-8 mb-2 text-green-500" />
-            <p>No surplus alerts at this time</p>
-            <p className="text-xs mt-1">All blood supplies are balanced</p>
+        <CardHeader>
+          <CardTitle className="text-lg">Surplus Alerts</CardTitle>
+          <CardDescription>Hospitals with surplus blood components that you need</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center p-4 text-muted-foreground">
+            No alerts at this time. Your inventory levels are sufficient.
           </div>
         </CardContent>
       </Card>
@@ -35,22 +36,25 @@ export default function SurplusAlerts({ alerts = [] }: SurplusAlertsProps) {
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardHeader>
+        <CardTitle className="text-lg">Surplus Alerts</CardTitle>
+        <CardDescription>Hospitals with surplus blood components that you need</CardDescription>
+      </CardHeader>
+      <CardContent>
         <div className="space-y-4">
-          {safeAlerts.map((alert) => (
-            <div
-              key={alert?.id || Math.random()}
-              className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
-            >
+          {alerts.map((alert, index) => (
+            <div key={index} className="flex items-start gap-3 p-3 border rounded-lg bg-amber-50">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
               <div>
-                <div className="font-medium">{alert?.hospital_name || "Unknown Hospital"}</div>
-                <div className="text-sm text-muted-foreground">
-                  {alert?.blood_type || "Unknown"} • {alert?.amount || 0} units
+                <div className="font-medium">
+                  {alert.hospitalName} has <span className="font-bold">{alert.count} units</span> of{" "}
+                  <Badge className={getBloodTypeColor(alert.bloodType, alert.rh)}>
+                    {formatBloodType(alert.bloodType, alert.rh)}
+                  </Badge>{" "}
+                  {alert.type}
                 </div>
+                <div className="text-sm text-muted-foreground">You currently have {alert.yourCount} units</div>
               </div>
-              <Badge variant={alert?.status === "urgent" ? "destructive" : "outline"}>
-                {alert?.status === "urgent" ? "Urgent" : "Available"}
-              </Badge>
             </div>
           ))}
         </div>

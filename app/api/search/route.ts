@@ -24,13 +24,12 @@ export async function GET(request: Request) {
       )
     }
 
-    // Get search query and filter parameters
+    // Get search query
     const url = new URL(request.url)
     const query = url.searchParams.get("q") || ""
-    const showInactive = url.searchParams.get("showInactive") === "true"
 
     // Search donors
-    const results = await searchDonors(query, showInactive)
+    const results = await searchDonors(query)
 
     return NextResponse.json({ success: true, results })
   } catch (error) {

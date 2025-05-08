@@ -1,7 +1,6 @@
 import { cookies } from "next/headers"
 import { verifyAdminCredentials, registerAdmin } from "./db"
 import { AppError, ErrorType, logError } from "./error-handling"
-import type { NextRequest } from "next/server"
 
 // Session management
 export async function createSession(adminId: number, hospitalId: number, username?: string, password?: string) {
@@ -40,13 +39,10 @@ export async function getSession() {
   }
 }
 
-// Enhanced clearSession function to ensure all cookies are properly cleared
+// Update the clearSession function to ensure all cookies are properly cleared
 export async function clearSession() {
   try {
-    // Log the session clearing attempt
-    console.log("Clearing session...")
-
-    // Define cookie options for clearing
+    // Clear all authentication-related cookies with proper options
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -57,56 +53,23 @@ export async function clearSession() {
 
     // Get all cookies to ensure we don't miss any
     const allCookies = cookies().getAll()
-    console.log(`Found ${allCookies.length} cookies to examine`)
 
-    // List of known authentication cookies to explicitly clear
-    const authCookies = [
-      "adminId",
-      "hospitalId",
-      "adminUsername",
-      "adminPassword",
-      "fallbackMode",
-      "sessionToken",
-      "authToken",
-      "refreshToken",
-    ]
-
-    // Clear known authentication cookies
-    for (const cookieName of authCookies) {
-      cookies().set(cookieName, "", cookieOptions)
-      console.log(`Cleared cookie: ${cookieName}`)
-    }
+    // Clear all authentication cookies
+    cookies().set("adminId", "", cookieOptions)
+    cookies().set("hospitalId", "", cookieOptions)
+    cookies().set("adminUsername", "", cookieOptions)
+    cookies().set("adminPassword", "", cookieOptions)
+    cookies().set("fallbackMode", "", cookieOptions)
+    cookies().set("sessionToken", "", cookieOptions)
 
     // Clear any other session-related cookies that might exist
-    let additionalCookiesCleared = 0
     for (const cookie of allCookies) {
-      // Skip cookies we've already cleared
-      if (authCookies.includes(cookie.name)) {
-        continue
-      }
-
-      // Clear cookies that match authentication patterns
       if (
         cookie.name.toLowerCase().includes("session") ||
         cookie.name.toLowerCase().includes("token") ||
-        cookie.name.toLowerCase().includes("auth") ||
-        cookie.name.toLowerCase().includes("login") ||
-        cookie.name.toLowerCase().includes("user") ||
-        cookie.name.toLowerCase().includes("admin")
+        cookie.name.toLowerCase().includes("auth")
       ) {
         cookies().set(cookie.name, "", cookieOptions)
-        additionalCookiesCleared++
-      }
-    }
-
-    console.log(`Cleared ${additionalCookiesCleared} additional cookies`)
-
-    // Try clearing with different paths for thoroughness
-    const additionalPaths = ["/dashboard", "/login", "/register", "/api"]
-    for (const path of additionalPaths) {
-      const pathOptions = { ...cookieOptions, path }
-      for (const cookieName of authCookies) {
-        cookies().set(cookieName, "", pathOptions)
       }
     }
 
@@ -115,7 +78,6 @@ export async function clearSession() {
 
     return true
   } catch (error) {
-    console.error("Error clearing session:", error)
     throw logError(error, "Clear Session")
   }
 }
@@ -197,23 +159,5 @@ export async function isAuthenticated() {
   } catch (error) {
     console.error("Error checking authentication:", error)
     return false
-  }
-}
-
-// Authentication middleware for API routes
-export async function requireApiAuth(
-  request: NextRequest,
-): Promise<{ success: boolean; hospitalId?: number; error?: string }> {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    return { success: true, hospitalId: session.hospitalId }
-  } catch (error) {
-    console.error("API authentication error:", error)
-    return { success: false, error: "Internal server error" }
   }
 }

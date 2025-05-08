@@ -1,92 +1,138 @@
-// Define error types for better categorization
+// Error types for the application
 export enum ErrorType {
-  AUTHENTICATION = "authentication",
-  AUTHORIZATION = "authorization",
-  VALIDATION = "validation",
-  NOT_FOUND = "not_found",
-  DATABASE_CONNECTION = "database_connection",
-  DATABASE_QUERY = "database_query",
-  SERVER = "server",
-  NETWORK = "network",
-  NAVIGATION = "navigation",
-  UNKNOWN = "unknown",
+  DATABASE_CONNECTION = "DATABASE_CONNECTION",
+  AUTHENTICATION = "AUTHENTICATION",
+  NOT_FOUND = "NOT_FOUND",
+  VALIDATION = "VALIDATION",
+  SERVER = "SERVER",
+  NAVIGATION = "NAVIGATION",
+  TIMEOUT = "TIMEOUT",
+  RATE_LIMIT = "RATE_LIMIT",
+  CONFLICT = "CONFLICT",
 }
 
-// Custom application error class
+// Error messages for users
+export const ErrorMessages = {
+  [ErrorType.DATABASE_CONNECTION]: "Unable to connect to the database. Please try again later.",
+  [ErrorType.AUTHENTICATION]: "Authentication failed. Please check your credentials and try again.",
+  [ErrorType.NOT_FOUND]: "The requested resource was not found.",
+  [ErrorType.VALIDATION]: "Please check your input and try again.",
+  [ErrorType.SERVER]: "An unexpected error occurred. Please try again later.",
+  [ErrorType.NAVIGATION]: "Navigation error. Please try again or return to the home page.",
+  [ErrorType.TIMEOUT]: "The operation timed out. Please try again later.",
+  [ErrorType.RATE_LIMIT]: "Too many requests. Please try again later.",
+  [ErrorType.CONFLICT]: "A conflict occurred with your request. Please refresh and try again.",
+}
+
+// Error class for application errors
 export class AppError extends Error {
   type: ErrorType
   details?: string
   retryable?: boolean
 
-  constructor(type: ErrorType, message: string, details?: string, retryable = false) {
-    super(message)
-    this.name = "AppError"
+  constructor(type: ErrorType, message?: string, details?: string, retryable?: boolean) {
+    super(message || ErrorMessages[type])
     this.type = type
     this.details = details
     this.retryable = retryable
+    this.name = "AppError"
   }
 }
 
-// Log errors with consistent format
-export function logError(error: unknown, context: string): AppError {
-  // Convert to AppError if it's not already
-  const appError =
-    error instanceof AppError
-      ? error
-      : new AppError(
-          ErrorType.UNKNOWN,
-          error instanceof Error ? error.message : "An unknown error occurred",
-          error instanceof Error ? error.stack : undefined,
-        )
+// Function to log errors without exposing sensitive details
+export function logError(error: unknown, context?: string): AppError {
+  const prefix = context ? `[${context}] ` : ""
 
-  // Log with context
-  console.error(`[${context}] ${appError.type}: ${appError.message}`, {
-    details: appError.details,
-    stack: appError.stack,
-  })
+  if (error instanceof AppError) {
+    console.error(`${prefix}${error.type}: ${error.message}`)
+    if (error.details) {
+      console.error(`${prefix}Details: ${error.details}`)
+    }
+    return error
+  }
 
-  return appError
+  // Handle other error types
+  if (error instanceof Error) {
+    console.error(`${prefix}Unhandled error: ${error.message}`)
+    console.error(error.stack)
+
+    // Check for redirect errors
+    if (error.message.includes("NEXT_REDIRECT") || error.message.includes("redirect")) {
+      return new AppError(ErrorType.NAVIGATION, "Navigation error", error.message)
+    }
+
+    // Check for timeout errors
+    if (error.message.includes("timeout") || error.message.includes("timed out")) {
+      return new AppError(ErrorType.TIMEOUT, "Operation timed out", error.message, true)
+    }
+
+    // Check for rate limit errors
+    if (error.message.includes("rate limit") || error.message.includes("too many requests")) {
+      return new AppError(ErrorType.RATE_LIMIT, "Rate limit exceeded", error.message, true)
+    }
+
+    // Check for database connection errors
+    if (
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("connection") ||
+      error.message.includes("ECONNREFUSED") ||
+      error.message.includes("database")
+    ) {
+      return new AppError(ErrorType.DATABASE_CONNECTION, "Database connection error", error.message, true)
+    }
+
+    // Check for validation errors
+    if (
+      error.message.includes("validation") ||
+      error.message.includes("invalid") ||
+      error.message.includes("required")
+    ) {
+      return new AppError(ErrorType.VALIDATION, "Validation error", error.message, false)
+    }
+
+    return new AppError(ErrorType.SERVER, undefined, error.message, true)
+  }
+
+  // Handle unknown errors
+  console.error(`${prefix}Unknown error:`, error)
+  return new AppError(ErrorType.SERVER, undefined, String(error), true)
 }
 
-// Convert technical error messages to user-friendly messages
+// Function to determine if an error is retryable
+export function isRetryableError(error: unknown): boolean {
+  if (error instanceof AppError) {
+    return (
+      error.retryable === true ||
+      error.type === ErrorType.DATABASE_CONNECTION ||
+      error.type === ErrorType.TIMEOUT ||
+      error.type === ErrorType.RATE_LIMIT ||
+      error.type === ErrorType.SERVER
+    )
+  }
+
+  // By default, consider unknown errors as retryable
+  return true
+}
+
+// Function to get a user-friendly error message
 export function getUserFriendlyErrorMessage(error: unknown): string {
   if (error instanceof AppError) {
-    switch (error.type) {
-      case ErrorType.AUTHENTICATION:
-        return "Your session has expired or is invalid. Please log in again."
-      case ErrorType.AUTHORIZATION:
-        return "You don't have permission to perform this action."
-      case ErrorType.VALIDATION:
-        return error.message || "The information you provided is invalid."
-      case ErrorType.NOT_FOUND:
-        return "The requested resource could not be found."
-      case ErrorType.DATABASE_CONNECTION:
-        return "We're having trouble connecting to the database. Please try again later."
-      case ErrorType.DATABASE_QUERY:
-        return "There was an issue retrieving the data. Please try again."
-      case ErrorType.NETWORK:
-        return "Network connection issue. Please check your internet connection and try again."
-      case ErrorType.NAVIGATION:
-        return "There was a problem navigating to the requested page."
-      default:
-        return "An unexpected error occurred. Please try again later."
-    }
+    return error.message
   }
 
-  // Handle standard errors
   if (error instanceof Error) {
-    if (error.message.includes("fetch") || error.message.includes("network")) {
-      return "Network connection issue. Please check your internet connection and try again."
+    // Try to extract a user-friendly message from the error
+    if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+      return "Network connection error. Please check your internet connection and try again."
     }
-    if (error.message.includes("timeout")) {
-      return "The request timed out. Please try again later."
+
+    if (error.message.includes("timeout") || error.message.includes("timed out")) {
+      return "The operation took too long to complete. Please try again later."
     }
-    if (error.message.includes("database") || error.message.includes("sql")) {
-      return "We're having trouble with our database. Please try again later."
-    }
+
+    // For other errors, return a generic message
     return "An unexpected error occurred. Please try again later."
   }
 
-  // Default message for unknown errors
-  return "Something went wrong. Please try again later."
+  return "An unknown error occurred. Please try again later."
 }

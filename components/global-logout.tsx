@@ -3,36 +3,54 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
+import { useSession } from "@/components/session-provider"
 
-// This component handles global logout events (e.g., from other tabs)
 export default function GlobalLogout() {
   const router = useRouter()
   const { toast } = useToast()
+  const { isAuthenticated, checkSession } = useSession()
 
+  // Listen for storage events to detect logout from other tabs
   useEffect(() => {
-    // Function to handle storage events
-    function handleStorageChange(event: StorageEvent) {
-      if (event.key === "logout" && event.newValue) {
-        // Show toast notification
-        toast({
-          title: "Logged Out",
-          description: "You have been logged out in another tab.",
-        })
+    const handleStorageChange = async (event: StorageEvent) => {
+      if (event.key === "logout" && event.newValue === "true") {
+        // Another tab logged out, check our session
+        const stillAuthenticated = await checkSession()
 
-        // Redirect to login page
-        router.push("/login")
-        router.refresh()
+        if (!stillAuthenticated) {
+          toast({
+            title: "Logged out in another tab",
+            description: "Your session was ended in another browser tab.",
+            variant: "default",
+          })
+
+          router.push("/login?reason=logged-out-elsewhere")
+        }
       }
     }
 
-    // Add event listener
     window.addEventListener("storage", handleStorageChange)
 
-    // Cleanup
     return () => {
       window.removeEventListener("storage", handleStorageChange)
     }
-  }, [router, toast])
+  }, [router, toast, checkSession])
 
-  return null
+  // Add a global keyboard shortcut for logout (Ctrl+Alt+L)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.altKey && event.key === "l" && isAuthenticated) {
+        event.preventDefault()
+        document.getElementById("global-logout-button")?.click()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isAuthenticated])
+
+  return null // This component doesn't render anything
 }

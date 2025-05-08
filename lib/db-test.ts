@@ -1,46 +1,52 @@
-import { neon } from "@neondatabase/serverless"
-import { isUsingFallbackMode } from "./db-config"
-import { getDatabaseUrl } from "./env-utils"
+import { neon, neonConfig } from "@neondatabase/serverless"
+import { logError } from "./error-handling"
 
 /**
- * Test the database connection without using the cache
+ * Utility function to test database connection without using fetchConnectionCache
+ * This is used to verify that the application works correctly after removing the deprecated option
  */
-async function testDatabaseConnectionWithoutCache(): Promise<{ success: boolean; message: string }> {
-  // Skip actual connection test in fallback mode
-  if (isUsingFallbackMode()) {
-    return {
-      success: true,
-      message: "Using development/preview mode with simulated data",
-    }
-  }
-
+export async function testDatabaseConnectionWithoutCache(): Promise<{
+  success: boolean
+  message: string
+  latency?: number
+}> {
   try {
-    const dbUrl = getDatabaseUrl()
+    console.log("Testing database connection with current configuration:")
+    console.log(`- fetchRetryTimeout: ${neonConfig.fetchRetryTimeout}ms`)
+    console.log(`- fetchRetryCount: ${neonConfig.fetchRetryCount}`)
+    console.log(`- wsConnectionTimeoutMs: ${neonConfig.wsConnectionTimeoutMs}ms`)
 
-    if (!dbUrl) {
+    // Check if DATABASE_URL is defined
+    if (!process.env.DATABASE_URL) {
       return {
         success: false,
-        message: "Database configuration missing",
+        message: "DATABASE_URL environment variable is not defined",
       }
     }
 
-    const sql = neon(dbUrl)
-    await sql`SELECT 1 as connection_test`
+    const dbClient = neon(process.env.DATABASE_URL)
+
+    // Measure query latency
+    const startTime = Date.now()
+
+    // Execute a simple query using tagged template literal
+    const result = await dbClient`SELECT 1 as connection_test`
+
+    const endTime = Date.now()
+    const latency = endTime - startTime
 
     return {
       success: true,
-      message: "Successfully connected to the database",
+      message: "Database connection successful",
+      latency,
     }
-  } catch (error: any) {
-    console.error("Database connection test failed:", error)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logError(error, "Database Connection Test")
 
     return {
       success: false,
-      message: `Error connecting to database: ${error.message || "Unknown error"}`,
+      message: `Database connection failed: ${errorMessage}`,
     }
   }
-}
-
-export async function testDatabaseConnection(): Promise<{ success: boolean; message: string }> {
-  return testDatabaseConnectionWithoutCache()
 }

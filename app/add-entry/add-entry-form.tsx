@@ -14,9 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ErrorType } from "@/lib/error-handling"
+import { useToast } from "@/components/ui/use-toast"
 import { useSessionTimeout } from "@/lib/session-timeout"
-// Import our custom hook
-import { useToastNotification } from "@/lib/hooks/use-toast-notification"
 
 type AddEntryFormProps = {
   hospitalId: number
@@ -34,10 +33,7 @@ type ApiErrorResponse = {
 
 export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
   const router = useRouter()
-  // Replace:
-  // const { toast } = useToast()
-  // With:
-  const { successToast, errorToast, infoToast } = useToastNotification()
+  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [errorType, setErrorType] = useState<ErrorType | null>(null)
@@ -253,14 +249,11 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
             activeTab === "redblood" ? "redblood-form" : activeTab === "plasma" ? "plasma-form" : "platelets-form",
           )
 
-          // Replace this:
-          // toast({
-          //   title: "Session expired",
-          //   description: "Your session has expired. Please log in again.",
-          //   variant: "destructive",
-          // })
-          // With this:
-          errorToast("Session expired", "Your session has expired. Please log in again.")
+          toast({
+            title: "Session expired",
+            description: "Your session has expired. Please log in again.",
+            variant: "destructive",
+          })
 
           // Redirect to login with return path
           const returnPath = encodeURIComponent(window.location.pathname)
@@ -338,7 +331,7 @@ export default function AddEntryForm({ hospitalId }: AddEntryFormProps) {
         }
       }
     },
-    [activeTab, saveFormData, errorToast],
+    [activeTab, saveFormData, toast],
   )
 
   // Handle red blood cell form submit
