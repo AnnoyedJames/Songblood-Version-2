@@ -1,4 +1,4 @@
-"use client"
+"\"use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -74,7 +74,7 @@ export function LogoutButton({
       toast({
         title: "Logged out successfully",
         description: "You have been logged out of your account.",
-        variant: "default",
+        variant: "success",
       })
 
       // Immediately redirect to login page

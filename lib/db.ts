@@ -1,151 +1,205 @@
-import { neon } from "@neondatabase/serverless"
+import { neon, neonConfig } from "@neondatabase/serverless"
+import { queryCache } from "./cache"
 import { AppError, ErrorType, logError } from "./error-handling"
+import { configureNeon } from "./db-config"
+
+// Configure Neon with optimal settings
+neonConfig.fetchRetryTimeout = 5000 // 5 seconds timeout
+neonConfig.fetchRetryCount = 2 // Retry twice
+neonConfig.wsConnectionTimeoutMs = 5000 // 5 seconds WebSocket timeout
+
+// Initialize Neon configuration
+configureNeon()
+
+// Sample data for fallback mode when database is unavailable
+const FALLBACK_DATA = {
+  hospitals: [
+    {
+      hospital_id: 1,
+      hospital_name: "โรงพยาบาลจุฬาลงกรณ์",
+      hospital_contact_mail: "info@chulalongkornhospital.go.th",
+      hospital_contact_phone: "02-256-4000",
+    },
+    {
+      hospital_id: 2,
+      hospital_name: "โรงพยาบาลศิริราช",
+      hospital_contact_mail: "info@sirirajhospital.com",
+      hospital_contact_phone: "02-419-7000",
+    },
+  ],
+  admins: [
+    { admin_id: 1, admin_username: "Panya", admin_password: "P9aDhR8e", hospital_id: 1 },
+    { admin_id: 2, admin_username: "Manasnan", admin_password: "M7nA7sL1k", hospital_id: 2 },
+    { admin_id: 3, admin_username: "demo", admin_password: "demo", hospital_id: 1 },
+  ],
+}
+
+// Flag to track if we're in fallback mode
+let IS_FALLBACK_MODE = false
 
 // Track connection errors for reporting
 let CONNECTION_ERROR_MESSAGE = ""
 
-// Flag to track if we're in fallback mode
-export let IS_FALLBACK_MODE = false
+// Create a SQL client with proper error handling
+// Initialize the neon client once
+export const dbClient = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
-// Function to get connection error message
-export function getConnectionErrorMessage() {
-  return CONNECTION_ERROR_MESSAGE
-}
-
-// Function to set connection error message
-export function setConnectionErrorMessage(message: string) {
-  CONNECTION_ERROR_MESSAGE = message
-}
-
-// Database connection configuration
-const QUERY_TIMEOUT = 10000 // 10 seconds
-
-// Function to validate and get the database URL
-export function getDatabaseUrl() {
-  // Try different environment variables in order of preference
-  const possibleUrls = [
-    process.env.DATABASE_URL,
-    process.env.POSTGRES_URL,
-    process.env.POSTGRES_PRISMA_URL,
-    process.env.POSTGRES_URL_NON_POOLING,
-  ]
-
-  // Find the first valid URL
-  const dbUrl = possibleUrls.find((url) => url && url.startsWith("postgres"))
-
-  if (!dbUrl) {
-    throw new AppError(ErrorType.DATABASE_CONNECTION, "No valid database URL found in environment variables", {
-      availableVars: Object.keys(process.env)
-        .filter((key) => key.includes("DATABASE") || key.includes("POSTGRES"))
-        .join(", "),
-    })
-  }
-
-  return dbUrl
-}
-
-// Create SQL client with the database URL
-export function createSqlClient() {
+export const sql = async (query: string, ...args: any[]) => {
   try {
-    const dbUrl = getDatabaseUrl()
-    return neon(dbUrl)
-  } catch (error) {
-    throw logError(error, "Create SQL Client")
-  }
-}
+    // Check if DATABASE_URL is defined
+    if (!process.env.DATABASE_URL || !dbClient) {
+      CONNECTION_ERROR_MESSAGE = "Database connection string is missing"
+      throw new AppError(
+        ErrorType.DATABASE_CONNECTION,
+        "Database connection string is missing",
+        "DATABASE_URL environment variable is not defined",
+      )
+    }
 
-// Execute a database query with timeout
-export async function executeQuery(query, params = []) {
-  try {
-    const sql = createSqlClient()
-
-    // Set a timeout for the query
+    // Add timeout to prevent hanging connections
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new AppError(ErrorType.TIMEOUT, "Database query timed out", "Query execution exceeded timeout limit"))
-      }, QUERY_TIMEOUT)
+        CONNECTION_ERROR_MESSAGE = "Database query timed out"
+        reject(
+          new AppError(
+            ErrorType.DATABASE_CONNECTION,
+            "Database query timed out",
+            "Query execution exceeded timeout limit",
+          ),
+        )
+      }, 5000)
     })
 
-    // Execute the query with timeout
-    const queryPromise = sql`${query}${params}`
-    const result = await Promise.race([queryPromise, timeoutPromise])
+    try {
+      // Use the tagged template literal syntax for the query
+      // Race the database query against the timeout
+      return (await Promise.race([dbClient.query(query, args), timeoutPromise])) as any[]
+    } catch (fetchError) {
+      // Handle fetch errors specifically
+      CONNECTION_ERROR_MESSAGE =
+        fetchError instanceof Error
+          ? `Error connecting to database: ${fetchError.message}`
+          : "Failed to connect to database"
 
-    return result
+      console.error("Database connection error:", fetchError)
+      throw new AppError(
+        ErrorType.DATABASE_CONNECTION,
+        "Failed to connect to database",
+        fetchError instanceof Error ? fetchError.message : String(fetchError),
+      )
+    }
   } catch (error) {
-    throw logError(error, "Execute Query")
+    if (error instanceof Error) {
+      CONNECTION_ERROR_MESSAGE = `Error connecting to database: ${error.message}`
+    }
+
+    // Convert and log the error
+    const appError = logError(error, "Database Query")
+
+    // Rethrow the error to be handled by the caller
+    throw appError
   }
 }
 
-// Function to check database connection
-export async function checkDatabaseConnection(): Promise<boolean> {
+// Function to test database connection
+export async function testDatabaseConnection(): Promise<{ connected: boolean; error?: string }> {
   try {
     // Check if DATABASE_URL is defined
     if (!process.env.DATABASE_URL) {
-      setConnectionErrorMessage("DATABASE_URL environment variable is not defined")
-      IS_FALLBACK_MODE = true
-      return false
+      CONNECTION_ERROR_MESSAGE = "Database connection string is missing"
+      return {
+        connected: false,
+        error: "Database connection string is missing",
+      }
     }
 
-    // Initialize the Neon database client
-    const dbClient = neon(process.env.DATABASE_URL)
+    // Create a direct neon client for testing only
+    const testClient = neon(process.env.DATABASE_URL)
 
-    // Test the connection with a simple query
-    await dbClient`SELECT 1`
+    // Use a timeout promise to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("Database connection timed out"))
+      }, 5000)
+    })
 
-    // If the connection is successful, reset the error message
-    setConnectionErrorMessage("")
-    IS_FALLBACK_MODE = false
-    return true
+    try {
+      // Use the tagged template literal syntax for the query
+      // Race the database query against the timeout
+      await Promise.race([testClient`SELECT 1 as connection_test`, timeoutPromise])
+      return { connected: true }
+    } catch (fetchError) {
+      // Handle fetch errors specifically
+      const errorMessage =
+        fetchError instanceof Error
+          ? `Database connection error: ${fetchError.message}`
+          : "Failed to connect to database"
+
+      CONNECTION_ERROR_MESSAGE = errorMessage
+      console.error("Database connection test failed:", fetchError)
+
+      return {
+        connected: false,
+        error: errorMessage,
+      }
+    }
   } catch (error) {
-    console.error("Database connection check failed:", error)
-    IS_FALLBACK_MODE = true
-    setConnectionErrorMessage(error instanceof Error ? error.message : String(error))
-    return false
+    // Handle any other errors
+    const errorMessage = error instanceof Error ? error.message : "Unknown database connection error"
+
+    CONNECTION_ERROR_MESSAGE = errorMessage
+    console.error("Database connection test error:", error)
+
+    return {
+      connected: false,
+      error: errorMessage,
+    }
   }
 }
 
 // Initialize database connection on module load
-checkDatabaseConnection()
-  .then((connected) => {
-    if (connected) {
-      console.log("Database connection test successful")
-      IS_FALLBACK_MODE = false
-    } else {
-      console.warn("Database connection failed. Application will show error messages to users.")
-      IS_FALLBACK_MODE = true
+testDatabaseConnection()
+  .then(({ connected, error }) => {
+    if (!connected) {
+      console.warn(`Database connection failed: ${error}. Application will show error messages to users.`)
+      CONNECTION_ERROR_MESSAGE = error || "Failed to connect to database"
     }
   })
   .catch((error) => {
     console.error("Unexpected error during database initialization:", error)
-    setConnectionErrorMessage(error instanceof Error ? error.message : String(error))
-    IS_FALLBACK_MODE = true
+    CONNECTION_ERROR_MESSAGE = error instanceof Error ? error.message : String(error)
   })
 
-// Initialize the neon client once with the best available URL
-export const dbClient = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
-
-// Test database connection
-export async function testConnection() {
+// Helper function to get hospital data by ID
+export async function getHospitalById(hospitalId: number) {
   try {
-    const result = await executeQuery("SELECT NOW() as current_time")
-    return {
-      success: true,
-      timestamp: result[0].current_time,
-      message: "Database connection successful",
+    const cacheKey = `hospital:${hospitalId}`
+    const cached = queryCache.get(cacheKey)
+
+    if (cached) {
+      return cached
     }
+
+    // Use tagged template literal syntax
+    const result = await dbClient`
+      SELECT * FROM hospital WHERE hospital_id = ${hospitalId}
+    `
+
+    if (!result || result.length === 0) {
+      throw new AppError(ErrorType.NOT_FOUND, "Hospital not found")
+    }
+
+    queryCache.set(cacheKey, result[0])
+    return result[0]
   } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      details: error.details || {},
-      type: error instanceof AppError ? error.type : "UNKNOWN",
-    }
+    throw logError(error, "Get Hospital")
   }
 }
 
-// Verify admin credentials
-export async function verifyAdminCredentials(username, password) {
+// Helper function to verify admin credentials
+export async function verifyAdminCredentials(username: string, password: string) {
   try {
+    // Use tagged template literal syntax
     const result = await dbClient`
       SELECT admin_id, hospital_id FROM admin 
       WHERE admin_username = ${username} AND admin_password = ${password}
@@ -159,80 +213,18 @@ export async function verifyAdminCredentials(username, password) {
   }
 }
 
-// Register a new admin
-export async function registerAdmin(username, password, hospitalId) {
+// Helper function to get blood inventory for a hospital
+export async function getBloodInventory(hospitalId: number) {
   try {
-    // Check if username already exists
-    const usernameCheck = await dbClient`
-      SELECT admin_id FROM admin WHERE admin_username = ${username}
-    `
+    const cacheKey = `redblood:${hospitalId}`
+    const cached = queryCache.get<any[]>(cacheKey)
 
-    if (usernameCheck.length > 0) {
-      return {
-        success: false,
-        error: "Username already exists",
-      }
+    if (cached) {
+      console.log("Using cached red blood cell data:", cached)
+      return cached
     }
 
-    // Insert new admin
-    const result = await dbClient`
-      INSERT INTO admin (admin_username, admin_password, hospital_id)
-      VALUES (${username}, ${password}, ${hospitalId})
-      RETURNING admin_id
-    `
-
-    if (result.length > 0) {
-      return { success: true }
-    } else {
-      return {
-        success: false,
-        error: "Failed to create admin account",
-      }
-    }
-  } catch (error) {
-    console.error("Error registering admin:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    }
-  }
-}
-
-// Get hospital by ID
-export async function getHospitalById(hospitalId) {
-  try {
-    const result = await dbClient`
-      SELECT * FROM hospital WHERE hospital_id = ${hospitalId}
-    `
-
-    if (!result || result.length === 0) {
-      throw new AppError(ErrorType.NOT_FOUND, "Hospital not found")
-    }
-
-    return result[0]
-  } catch (error) {
-    throw logError(error, "Get Hospital")
-  }
-}
-
-// Get all hospitals
-export async function getAllHospitals() {
-  try {
-    const hospitals = await dbClient`
-      SELECT hospital_id, hospital_name 
-      FROM hospital 
-      ORDER BY hospital_name
-    `
-
-    return hospitals
-  } catch (error) {
-    throw logError(error, "Get All Hospitals")
-  }
-}
-
-// Get blood inventory
-export async function getBloodInventory(hospitalId) {
-  try {
+    // Use tagged template literal syntax - now filtering for active=true
     const redBlood = await dbClient`
       SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
       FROM redblood_inventory
@@ -241,19 +233,33 @@ export async function getBloodInventory(hospitalId) {
       ORDER BY blood_type, rh
     `
 
-    return redBlood.map((item) => ({
+    console.log("Retrieved red blood cell data from DB:", redBlood)
+
+    // Ensure numeric values are properly parsed
+    const processedData = redBlood.map((item) => ({
       ...item,
       count: Number(item.count),
       total_amount: Number(item.total_amount),
     }))
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
   } catch (error) {
     throw logError(error, "Get Blood Inventory")
   }
 }
 
-// Get plasma inventory
-export async function getPlasmaInventory(hospitalId) {
+// Helper function to get plasma inventory for a hospital
+export async function getPlasmaInventory(hospitalId: number) {
   try {
+    const cacheKey = `plasma:${hospitalId}`
+    const cached = queryCache.get<any[]>(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // Use tagged template literal syntax - now filtering for active=true
     const plasma = await dbClient`
       SELECT blood_type, COUNT(*) as count, SUM(amount) as total_amount
       FROM plasma_inventory
@@ -262,15 +268,24 @@ export async function getPlasmaInventory(hospitalId) {
       ORDER BY blood_type
     `
 
+    queryCache.set(cacheKey, plasma)
     return plasma
   } catch (error) {
     throw logError(error, "Get Plasma Inventory")
   }
 }
 
-// Get platelets inventory
-export async function getPlateletsInventory(hospitalId) {
+// Helper function to get platelets inventory for a hospital
+export async function getPlateletsInventory(hospitalId: number) {
   try {
+    const cacheKey = `platelets:${hospitalId}`
+    const cached = queryCache.get<any[]>(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // Use tagged template literal syntax - now filtering for active=true
     const platelets = await dbClient`
       SELECT blood_type, rh, COUNT(*) as count, SUM(amount) as total_amount
       FROM platelets_inventory
@@ -279,247 +294,18 @@ export async function getPlateletsInventory(hospitalId) {
       ORDER BY blood_type, rh
     `
 
-    return platelets.map((item) => ({
-      ...item,
-      count: Number(item.count || 0),
-      total_amount: Number(item.total_amount || 0),
-    }))
+    queryCache.set(cacheKey, platelets)
+    return platelets
   } catch (error) {
     throw logError(error, "Get Platelets Inventory")
   }
 }
 
-// Add new red blood bag
-export async function addNewRedBloodBag(
-  donorName,
-  amount,
-  hospitalId,
-  expirationDate,
-  bloodType,
-  rh,
-  adminUsername,
-  adminPassword,
-) {
-  try {
-    // Check database connection first
-    const isConnected = await checkDatabaseConnection()
-    if (!isConnected) {
-      return {
-        success: false,
-        error: "Database connection error",
-        type: ErrorType.DATABASE_CONNECTION,
-      }
-    }
-
-    // Validate admin credentials
-    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
-    if (!adminCheck) {
-      return {
-        success: false,
-        error: "Authentication failed",
-        type: ErrorType.AUTHENTICATION,
-      }
-    }
-
-    // Insert new red blood bag
-    await dbClient`
-      INSERT INTO redblood_inventory (
-        donor_name, 
-        amount, 
-        hospital_id, 
-        expiration_date, 
-        blood_type, 
-        rh, 
-        active
-      ) VALUES (
-        ${donorName},
-        ${amount},
-        ${hospitalId},
-        ${expirationDate}::date,
-        ${bloodType},
-        ${rh},
-        true
-      )
-    `
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error adding red blood bag:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      type: error instanceof AppError ? error.type : ErrorType.SERVER,
-    }
-  }
-}
-
-// Add new plasma bag
-export async function addNewPlasmaBag(
-  donorName,
-  amount,
-  hospitalId,
-  expirationDate,
-  bloodType,
-  adminUsername,
-  adminPassword,
-) {
-  try {
-    // Check database connection first
-    const isConnected = await checkDatabaseConnection()
-    if (!isConnected) {
-      return {
-        success: false,
-        error: "Database connection error",
-        type: ErrorType.DATABASE_CONNECTION,
-      }
-    }
-
-    // Validate admin credentials
-    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
-    if (!adminCheck) {
-      return {
-        success: false,
-        error: "Authentication failed",
-        type: ErrorType.AUTHENTICATION,
-      }
-    }
-
-    // Insert new plasma bag
-    await dbClient`
-      INSERT INTO plasma_inventory (
-        donor_name, 
-        amount, 
-        hospital_id, 
-        expiration_date, 
-        blood_type, 
-        active
-      ) VALUES (
-        ${donorName},
-        ${amount},
-        ${hospitalId},
-        ${expirationDate}::date,
-        ${bloodType},
-        true
-      )
-    `
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error adding plasma bag:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      type: error instanceof AppError ? error.type : ErrorType.SERVER,
-    }
-  }
-}
-
-// Add new platelets bag
-export async function addNewPlateletsBag(
-  donorName,
-  amount,
-  hospitalId,
-  expirationDate,
-  bloodType,
-  rh,
-  adminUsername,
-  adminPassword,
-) {
-  try {
-    // Check database connection first
-    const isConnected = await checkDatabaseConnection()
-    if (!isConnected) {
-      return {
-        success: false,
-        error: "Database connection error",
-        type: ErrorType.DATABASE_CONNECTION,
-      }
-    }
-
-    // Validate admin credentials
-    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
-    if (!adminCheck) {
-      return {
-        success: false,
-        error: "Authentication failed",
-        type: ErrorType.AUTHENTICATION,
-      }
-    }
-
-    // Insert new platelets bag
-    await dbClient`
-      INSERT INTO platelets_inventory (
-        donor_name, 
-        amount, 
-        hospital_id, 
-        expiration_date, 
-        blood_type, 
-        rh, 
-        active
-      ) VALUES (
-        ${donorName},
-        ${amount},
-        ${hospitalId},
-        ${expirationDate}::date,
-        ${bloodType},
-        ${rh},
-        true
-      )
-    `
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error adding platelets bag:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      type: error instanceof AppError ? error.type : ErrorType.SERVER,
-    }
-  }
-}
-
-// Search donors
-export async function searchDonors(query) {
-  if (!query || query.trim() === "") return []
-
-  try {
-    const searchTerm = `%${query}%`
-
-    // Search by donor name
-    const redBloodResults = await dbClient`
-      SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
-             rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
-      FROM redblood_inventory rb
-      JOIN hospital h ON rb.hospital_id = h.hospital_id
-      WHERE rb.donor_name ILIKE ${searchTerm} AND rb.active = true
-    `
-
-    const plasmaResults = await dbClient`
-      SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
-             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
-      FROM plasma_inventory p
-      JOIN hospital h ON p.hospital_id = h.hospital_id
-      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
-    `
-
-    const plateletsResults = await dbClient`
-      SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
-             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
-      FROM platelets_inventory p
-      JOIN hospital h ON p.hospital_id = h.hospital_id
-      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
-    `
-
-    return [...redBloodResults, ...plasmaResults, ...plateletsResults]
-  } catch (error) {
-    throw logError(error, "Search Donors")
-  }
-}
-
-// Get surplus alerts
-export async function getSurplusAlerts(hospitalId) {
+// Helper function to get surplus alerts
+export async function getSurplusAlerts(hospitalId: number) {
   try {
     // Get current hospital's inventory
+    // Use tagged template literal syntax - now filtering for active=true
     const currentHospitalInventory = await dbClient`
       SELECT 'RedBlood' as type, blood_type, rh, COUNT(*) as count
       FROM redblood_inventory
@@ -548,6 +334,7 @@ export async function getSurplusAlerts(hospitalId) {
         let surplusHospitals
 
         if (type === "RedBlood") {
+          // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
             SELECT h.hospital_id, h.hospital_name, COUNT(*) as count, 
                    h.hospital_contact_phone, h.hospital_contact_mail
@@ -563,6 +350,7 @@ export async function getSurplusAlerts(hospitalId) {
             ORDER BY count DESC
           `
         } else if (type === "Plasma") {
+          // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
             SELECT h.hospital_id, h.hospital_name, COUNT(*) as count,
                    h.hospital_contact_phone, h.hospital_contact_mail
@@ -577,6 +365,7 @@ export async function getSurplusAlerts(hospitalId) {
             ORDER BY count DESC
           `
         } else if (type === "Platelets") {
+          // Use tagged template literal syntax - now filtering for active=true
           surplusHospitals = await dbClient`
             SELECT h.hospital_id, h.hospital_name, COUNT(*) as count,
                    h.hospital_contact_phone, h.hospital_contact_mail
@@ -617,11 +406,582 @@ export async function getSurplusAlerts(hospitalId) {
   }
 }
 
-// Soft delete blood entry
-export async function softDeleteBloodEntry(bagId, entryType, hospitalId) {
-  try {
-    let result
+// Helper function to search for donors
+export async function searchDonors(query: string) {
+  if (!query || query.trim() === "") return []
 
+  try {
+    const searchTerm = `%${query}%`
+
+    // Search by bag ID if the query is a number
+    if (!isNaN(Number(query))) {
+      const bagId = Number(query)
+
+      // Use tagged template literal syntax - now filtering for active=true
+      const redBloodResults = await dbClient`
+        SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
+               rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
+        FROM redblood_inventory rb
+        JOIN hospital h ON rb.hospital_id = h.hospital_id
+        WHERE rb.bag_id = ${bagId} AND rb.active = true
+      `
+
+      // Use tagged template literal syntax - now filtering for active=true
+      const plasmaResults = await dbClient`
+        SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
+               p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+        FROM plasma_inventory p
+        JOIN hospital h ON p.hospital_id = h.hospital_id
+        WHERE p.bag_id = ${bagId} AND p.active = true
+      `
+
+      // Use tagged template literal syntax - now filtering for active=true
+      const plateletsResults = await dbClient`
+        SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
+               p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+        FROM platelets_inventory p
+        JOIN hospital h ON p.hospital_id = h.hospital_id
+        WHERE p.bag_id = ${bagId} AND p.active = true
+      `
+
+      return [...redBloodResults, ...plasmaResults, ...plateletsResults]
+    }
+
+    // Search by donor name
+    // Use tagged template literal syntax - now filtering for active=true
+    const redBloodResults = await dbClient`
+      SELECT 'RedBlood' as type, rb.bag_id, rb.donor_name, rb.blood_type, rb.rh, 
+             rb.amount, rb.expiration_date, h.hospital_name, h.hospital_contact_phone
+      FROM redblood_inventory rb
+      JOIN hospital h ON rb.hospital_id = h.hospital_id
+      WHERE rb.donor_name ILIKE ${searchTerm} AND rb.active = true
+    `
+
+    // Use tagged template literal syntax - now filtering for active=true
+    const plasmaResults = await dbClient`
+      SELECT 'Plasma' as type, p.bag_id, p.donor_name, p.blood_type, '' as rh, 
+             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+      FROM plasma_inventory p
+      JOIN hospital h ON p.hospital_id = h.hospital_id
+      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
+    `
+
+    // Use tagged template literal syntax - now filtering for active=true
+    const plateletsResults = await dbClient`
+      SELECT 'Platelets' as type, p.bag_id, p.donor_name, p.blood_type, p.rh, 
+             p.amount, p.expiration_date, h.hospital_name, h.hospital_contact_phone
+      FROM platelets_inventory p
+      JOIN hospital h ON p.hospital_id = h.hospital_id
+      WHERE p.donor_name ILIKE ${searchTerm} AND p.active = true
+    `
+
+    return [...redBloodResults, ...plasmaResults, ...plateletsResults]
+  } catch (error) {
+    throw logError(error, "Search Donors")
+  }
+}
+
+// Helper function to add new plasma bag
+export async function addNewPlasmaBag(
+  donorName: string,
+  amount: number,
+  hospitalId: number,
+  expirationDate: string,
+  bloodType: string,
+  adminUsername: string,
+  adminPassword: string,
+) {
+  try {
+    // Check database connection first
+    const isConnected = await checkDatabaseConnection()
+    if (!isConnected) {
+      return {
+        success: false,
+        error: "Database connection error",
+        type: ErrorType.DATABASE_CONNECTION,
+        details: "Unable to connect to the database. Please try again later.",
+        retryable: true,
+      }
+    }
+
+    // Validate admin credentials
+    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
+    if (!adminCheck) {
+      return {
+        success: false,
+        error: "Authentication failed",
+        type: ErrorType.AUTHENTICATION,
+        details: "Your session has expired or is invalid. Please log in again.",
+        retryable: false,
+      }
+    }
+
+    // Check if the admin belongs to the specified hospital
+    if (adminCheck.hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "Unauthorized hospital access",
+        type: ErrorType.AUTHENTICATION,
+        details: "You don't have permission to add entries for this hospital.",
+        retryable: false,
+      }
+    }
+
+    // Use tagged template literal syntax with error handling
+    try {
+      // Modified to include active=true
+      await dbClient`
+        INSERT INTO plasma_inventory (
+          donor_name, 
+          amount, 
+          hospital_id, 
+          expiration_date, 
+          blood_type, 
+          active
+        ) VALUES (
+          ${donorName},
+          ${amount},
+          ${hospitalId},
+          ${expirationDate}::date,
+          ${bloodType},
+          true
+        )
+      `
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`plasma:${hospitalId}`)
+      return { success: true }
+    } catch (dbError: any) {
+      // Handle specific database errors
+      if (dbError.message?.includes("duplicate key")) {
+        return {
+          success: false,
+          error: "Duplicate entry",
+          type: ErrorType.VALIDATION,
+          details: "A plasma bag with this information already exists.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("violates foreign key constraint")) {
+        return {
+          success: false,
+          error: "Invalid reference",
+          type: ErrorType.VALIDATION,
+          details: "One of the referenced values (like hospital ID) is invalid.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("out of range")) {
+        return {
+          success: false,
+          error: "Value out of range",
+          type: ErrorType.VALIDATION,
+          details: "One of the provided values is out of the acceptable range.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("connection")) {
+        return {
+          success: false,
+          error: "Database connection lost",
+          type: ErrorType.DATABASE_CONNECTION,
+          details: "The connection to the database was lost. Please try again.",
+          retryable: true,
+        }
+      }
+
+      // For other database errors
+      throw dbError
+    }
+  } catch (error) {
+    // Convert to AppError and log
+    const appError = logError(error, "Add Plasma Bag")
+
+    // Return appropriate error response
+    return {
+      success: false,
+      error: appError.message || "Failed to add plasma bag",
+      type: appError.type,
+      details: appError.details || "An unexpected error occurred while processing your request.",
+      retryable: appError.type === ErrorType.DATABASE_CONNECTION || appError.type === ErrorType.SERVER,
+    }
+  }
+}
+
+// Helper function to add new platelets bag
+export async function addNewPlateletsBag(
+  donorName: string,
+  amount: number,
+  hospitalId: number,
+  expirationDate: string,
+  bloodType: string,
+  rh: string,
+  adminUsername: string,
+  adminPassword: string,
+) {
+  try {
+    // Check database connection first
+    const isConnected = await checkDatabaseConnection()
+    if (!isConnected) {
+      return {
+        success: false,
+        error: "Database connection error",
+        type: ErrorType.DATABASE_CONNECTION,
+        details: "Unable to connect to the database. Please try again later.",
+        retryable: true,
+      }
+    }
+
+    // Validate admin credentials
+    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
+    if (!adminCheck) {
+      return {
+        success: false,
+        error: "Authentication failed",
+        type: ErrorType.AUTHENTICATION,
+        details: "Your session has expired or is invalid. Please log in again.",
+        retryable: false,
+      }
+    }
+
+    // Check if the admin belongs to the specified hospital
+    if (adminCheck.hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "Unauthorized hospital access",
+        type: ErrorType.AUTHENTICATION,
+        details: "You don't have permission to add entries for this hospital.",
+        retryable: false,
+      }
+    }
+
+    // Use tagged template literal syntax with error handling
+    try {
+      // Modified to include active=true
+      await dbClient`
+        INSERT INTO platelets_inventory (
+          donor_name, 
+          amount, 
+          hospital_id, 
+          expiration_date, 
+          blood_type, 
+          rh, 
+          active
+        ) VALUES (
+          ${donorName},
+          ${amount},
+          ${hospitalId},
+          ${expirationDate}::date,
+          ${bloodType},
+          ${rh},
+          true
+        )
+      `
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`platelets:${hospitalId}`)
+      return { success: true }
+    } catch (dbError: any) {
+      // Handle specific database errors
+      if (dbError.message?.includes("duplicate key")) {
+        return {
+          success: false,
+          error: "Duplicate entry",
+          type: ErrorType.VALIDATION,
+          details: "A platelets bag with this information already exists.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("violates foreign key constraint")) {
+        return {
+          success: false,
+          error: "Invalid reference",
+          type: ErrorType.VALIDATION,
+          details: "One of the referenced values (like hospital ID) is invalid.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("out of range")) {
+        return {
+          success: false,
+          error: "Value out of range",
+          type: ErrorType.VALIDATION,
+          details: "One of the provided values is out of the acceptable range.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("connection")) {
+        return {
+          success: false,
+          error: "Database connection lost",
+          type: ErrorType.DATABASE_CONNECTION,
+          details: "The connection to the database was lost. Please try again.",
+          retryable: true,
+        }
+      }
+
+      // For other database errors
+      throw dbError
+    }
+  } catch (error) {
+    // Convert to AppError and log
+    const appError = logError(error, "Add Platelets Bag")
+
+    // Return appropriate error response
+    return {
+      success: false,
+      error: appError.message || "Failed to add platelets bag",
+      type: appError.type,
+      details: appError.details || "An unexpected error occurred while processing your request.",
+      retryable: appError.type === ErrorType.DATABASE_CONNECTION || appError.type === ErrorType.SERVER,
+    }
+  }
+}
+
+// Helper function to add new red blood cell bag
+export async function addNewRedBloodBag(
+  donorName: string,
+  amount: number,
+  hospitalId: number,
+  expirationDate: string,
+  bloodType: string,
+  rh: string,
+  adminUsername: string,
+  adminPassword: string,
+) {
+  try {
+    // Check database connection first
+    const isConnected = await checkDatabaseConnection()
+    if (!isConnected) {
+      return {
+        success: false,
+        error: "Database connection error",
+        type: ErrorType.DATABASE_CONNECTION,
+        details: "Unable to connect to the database. Please try again later.",
+        retryable: true,
+      }
+    }
+
+    // Validate admin credentials
+    const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
+    if (!adminCheck) {
+      return {
+        success: false,
+        error: "Authentication failed",
+        type: ErrorType.AUTHENTICATION,
+        details: "Your session has expired or is invalid. Please log in again.",
+        retryable: false,
+      }
+    }
+
+    // Check if the admin belongs to the specified hospital
+    if (adminCheck.hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "Unauthorized hospital access",
+        type: ErrorType.AUTHENTICATION,
+        details: "You don't have permission to add entries for this hospital.",
+        retryable: false,
+      }
+    }
+
+    // Use tagged template literal syntax with error handling
+    try {
+      // Modified to include active=true
+      await dbClient`
+        INSERT INTO redblood_inventory (
+          donor_name, 
+          amount, 
+          hospital_id, 
+          expiration_date, 
+          blood_type, 
+          rh, 
+          active
+        ) VALUES (
+          ${donorName},
+          ${amount},
+          ${hospitalId},
+          ${expirationDate}::date,
+          ${bloodType},
+          ${rh},
+          true
+        )
+      `
+
+      // Invalidate relevant caches
+      queryCache.invalidate(`redblood:${hospitalId}`)
+      return { success: true }
+    } catch (dbError: any) {
+      // Handle specific database errors
+      if (dbError.message?.includes("duplicate key")) {
+        return {
+          success: false,
+          error: "Duplicate entry",
+          type: ErrorType.VALIDATION,
+          details: "A blood bag with this information already exists.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("violates foreign key constraint")) {
+        return {
+          success: false,
+          error: "Invalid reference",
+          type: ErrorType.VALIDATION,
+          details: "One of the referenced values (like hospital ID) is invalid.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("out of range")) {
+        return {
+          success: false,
+          error: "Value out of range",
+          type: ErrorType.VALIDATION,
+          details: "One of the provided values is out of the acceptable range.",
+          retryable: false,
+        }
+      } else if (dbError.message?.includes("connection")) {
+        return {
+          success: false,
+          error: "Database connection lost",
+          type: ErrorType.DATABASE_CONNECTION,
+          details: "The connection to the database was lost. Please try again.",
+          retryable: true,
+        }
+      }
+
+      // For other database errors
+      throw dbError
+    }
+  } catch (error) {
+    // Convert to AppError and log
+    const appError = logError(error, "Add Red Blood Cell Bag")
+
+    // Return appropriate error response
+    return {
+      success: false,
+      error: appError.message || "Failed to add red blood cell bag",
+      type: appError.type,
+      details: appError.details || "An unexpected error occurred while processing your request.",
+      retryable: appError.type === ErrorType.DATABASE_CONNECTION || appError.type === ErrorType.SERVER,
+    }
+  }
+}
+
+// Function to check database connection
+export async function checkDatabaseConnection() {
+  if (IS_FALLBACK_MODE) {
+    return false
+  }
+
+  try {
+    // Use tagged template literal syntax
+    await dbClient`SELECT 1`
+    return true
+  } catch (error) {
+    console.error("Database connection check failed:", error)
+    IS_FALLBACK_MODE = true
+    return false
+  }
+}
+
+// Function to get fallback mode status
+export function isFallbackMode() {
+  return IS_FALLBACK_MODE
+}
+
+// Add this function to the existing db.ts file
+export async function registerAdmin(username: string, password: string, hospitalId: number) {
+  // Check if we're in fallback mode
+  if (IS_FALLBACK_MODE) {
+    // In fallback mode, simulate registration
+    const existingAdmin = FALLBACK_DATA.admins.find((a) => a.admin_username === username)
+    if (existingAdmin) {
+      return { success: false, error: "Username already exists" }
+    }
+
+    // Add to fallback data (this won't persist across server restarts)
+    const newAdminId = FALLBACK_DATA.admins.length + 1
+    FALLBACK_DATA.admins.push({
+      admin_id: newAdminId,
+      admin_username: username,
+      admin_password: password,
+      hospital_id: hospitalId,
+    })
+
+    return { success: true }
+  }
+
+  try {
+    // First check if the hospital exists
+    // Use tagged template literal syntax
+    const hospitalCheck = await dbClient`
+      SELECT hospital_id FROM hospital WHERE hospital_id = ${hospitalId}
+    `
+
+    if (hospitalCheck.length === 0) {
+      throw new AppError(ErrorType.VALIDATION, "Hospital not found")
+    }
+
+    // Check if username already exists
+    // Use tagged template literal syntax
+    const usernameCheck = await dbClient`
+      SELECT admin_id FROM admin WHERE admin_username = ${username}
+    `
+
+    if (usernameCheck.length > 0) {
+      throw new AppError(ErrorType.VALIDATION, "Username already exists")
+    }
+
+    // Insert new admin
+    // Use tagged template literal syntax
+    const result = await dbClient`
+      INSERT INTO admin (admin_username, admin_password, hospital_id)
+      VALUES (${username}, ${password}, ${hospitalId})
+      RETURNING admin_id
+    `
+
+    if (result.length > 0) {
+      return { success: true }
+    } else {
+      throw new AppError(ErrorType.SERVER, "Failed to create admin account")
+    }
+  } catch (error) {
+    throw logError(error, "Register Admin")
+  }
+}
+
+// Function to get connection error message
+export function getConnectionErrorMessage() {
+  return CONNECTION_ERROR_MESSAGE
+}
+
+// Function to get all hospitals for dropdown lists
+export async function getAllHospitals() {
+  try {
+    const cacheKey = "all-hospitals"
+    const cached = queryCache.get(cacheKey)
+
+    if (cached) {
+      return cached
+    }
+
+    // Use tagged template literal syntax
+    const hospitals = await dbClient`
+      SELECT hospital_id, hospital_name 
+      FROM hospital 
+      ORDER BY hospital_name
+    `
+
+    queryCache.set(cacheKey, hospitals)
+    return hospitals
+  } catch (error) {
+    throw logError(error, "Get All Hospitals")
+  }
+}
+
+// New function to soft-delete a blood inventory entry
+export async function softDeleteBloodEntry(bagId: number, entryType: string, hospitalId: number) {
+  try {
+    // Verify that the entry belongs to the hospital
+    const ownershipCheck = await verifyEntryOwnership(bagId, entryType, hospitalId)
+    if (!ownershipCheck.success) {
+      return ownershipCheck
+    }
+
+    // Soft-delete the entry based on its type by setting active = false
+    let result
     if (entryType === "RedBlood") {
       result = await dbClient`
         UPDATE redblood_inventory
@@ -629,6 +989,8 @@ export async function softDeleteBloodEntry(bagId, entryType, hospitalId) {
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
         RETURNING bag_id
       `
+      // Invalidate cache
+      queryCache.invalidate(`redblood:${hospitalId}`)
     } else if (entryType === "Plasma") {
       result = await dbClient`
         UPDATE plasma_inventory
@@ -636,6 +998,8 @@ export async function softDeleteBloodEntry(bagId, entryType, hospitalId) {
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
         RETURNING bag_id
       `
+      // Invalidate cache
+      queryCache.invalidate(`plasma:${hospitalId}`)
     } else if (entryType === "Platelets") {
       result = await dbClient`
         UPDATE platelets_inventory
@@ -643,6 +1007,8 @@ export async function softDeleteBloodEntry(bagId, entryType, hospitalId) {
         WHERE bag_id = ${bagId} AND hospital_id = ${hospitalId}
         RETURNING bag_id
       `
+      // Invalidate cache
+      queryCache.invalidate(`platelets:${hospitalId}`)
     } else {
       return {
         success: false,
@@ -660,16 +1026,60 @@ export async function softDeleteBloodEntry(bagId, entryType, hospitalId) {
     }
   } catch (error) {
     console.error("Error soft-deleting blood entry:", error)
+    const appError = logError(error, "Soft Delete Blood Entry")
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      error: appError.message,
+      details: appError.details,
     }
   }
 }
 
-// Function to get fallback mode status
-export function isFallbackMode() {
-  return IS_FALLBACK_MODE
-}
+// Helper function to verify entry ownership
+async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId: number) {
+  try {
+    let result
+    if (entryType === "RedBlood") {
+      result = await dbClient`
+        SELECT hospital_id FROM redblood_inventory WHERE bag_id = ${bagId} AND active = true
+      `
+    } else if (entryType === "Plasma") {
+      result = await dbClient`
+        SELECT hospital_id FROM plasma_inventory WHERE bag_id = ${bagId} AND active = true
+      `
+    } else if (entryType === "Platelets") {
+      result = await dbClient`
+        SELECT hospital_id FROM platelets_inventory WHERE bag_id = ${bagId} AND active = true
+      `
+    } else {
+      return {
+        success: false,
+        error: "Invalid entry type",
+      }
+    }
 
-export { checkDatabaseConnection as testDatabaseConnection }
+    if (!result || result.length === 0) {
+      return {
+        success: false,
+        error: "Entry not found",
+      }
+    }
+
+    if (result[0].hospital_id !== hospitalId) {
+      return {
+        success: false,
+        error: "You don't have permission to modify this entry",
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error verifying entry ownership:", error)
+    const appError = logError(error, "Verify Entry Ownership")
+    return {
+      success: false,
+      error: appError.message,
+      details: appError.details,
+    }
+  }
+}
