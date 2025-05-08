@@ -3,10 +3,10 @@ import { neonConfig } from "@neondatabase/serverless"
 
 // Database configuration constants
 export const DB_CONFIG = {
-  CONNECTION_TIMEOUT_MS: 5000,
+  CONNECTION_TIMEOUT_MS: 10000, // Increased timeout for production
   RETRY_COUNT: 3,
   RETRY_DELAY_MS: 1000,
-  CONNECTION_POOL_SIZE: 10,
+  CONNECTION_POOL_SIZE: 20, // Increased pool size for production
   QUERY_CACHE_TTL_SECONDS: 60, // Cache TTL in seconds
 }
 
@@ -21,11 +21,13 @@ export function configureNeon() {
   // Set WebSocket connection timeout
   neonConfig.wsConnectionTimeoutMs = DB_CONFIG.CONNECTION_TIMEOUT_MS
 
-  // Log configuration for debugging
-  console.log("Neon database configuration initialized with the following settings:")
-  console.log(`- Connection timeout: ${DB_CONFIG.CONNECTION_TIMEOUT_MS}ms`)
-  console.log(`- Retry count: ${DB_CONFIG.RETRY_COUNT}`)
-  console.log(`- WebSocket timeout: ${DB_CONFIG.CONNECTION_TIMEOUT_MS}ms`)
+  // Only log in development environment
+  if (process.env.NODE_ENV === "development") {
+    console.log("Neon database configuration initialized with the following settings:")
+    console.log(`- Connection timeout: ${DB_CONFIG.CONNECTION_TIMEOUT_MS}ms`)
+    console.log(`- Retry count: ${DB_CONFIG.RETRY_COUNT}`)
+    console.log(`- WebSocket timeout: ${DB_CONFIG.CONNECTION_TIMEOUT_MS}ms`)
+  }
 }
 
 // Validate database URL format

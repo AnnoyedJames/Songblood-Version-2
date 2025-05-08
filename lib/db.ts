@@ -11,32 +11,6 @@ neonConfig.wsConnectionTimeoutMs = 5000 // 5 seconds WebSocket timeout
 // Initialize Neon configuration
 configureNeon()
 
-// Sample data for fallback mode when database is unavailable
-const FALLBACK_DATA = {
-  hospitals: [
-    {
-      hospital_id: 1,
-      hospital_name: "โรงพยาบาลจุฬาลงกรณ์",
-      hospital_contact_mail: "info@chulalongkornhospital.go.th",
-      hospital_contact_phone: "02-256-4000",
-    },
-    {
-      hospital_id: 2,
-      hospital_name: "โรงพยาบาลศิริราช",
-      hospital_contact_mail: "info@sirirajhospital.com",
-      hospital_contact_phone: "02-419-7000",
-    },
-  ],
-  admins: [
-    { admin_id: 1, admin_username: "Panya", admin_password: "P9aDhR8e", hospital_id: 1 },
-    { admin_id: 2, admin_username: "Manasnan", admin_password: "M7nA7sL1k", hospital_id: 2 },
-    { admin_id: 3, admin_username: "demo", admin_password: "demo", hospital_id: 1 },
-  ],
-}
-
-// Flag to track if we're in fallback mode
-let IS_FALLBACK_MODE = false
-
 // Track connection errors for reporting
 let CONNECTION_ERROR_MESSAGE = ""
 
@@ -220,7 +194,6 @@ export async function getBloodInventory(hospitalId: number) {
     const cached = queryCache.get<any[]>(cacheKey)
 
     if (cached) {
-      console.log("Using cached red blood cell data:", cached)
       return cached
     }
 
@@ -232,8 +205,6 @@ export async function getBloodInventory(hospitalId: number) {
       GROUP BY blood_type, rh
       ORDER BY blood_type, rh
     `
-
-    console.log("Retrieved red blood cell data from DB:", redBlood)
 
     // Ensure numeric values are properly parsed
     const processedData = redBlood.map((item) => ({
@@ -268,8 +239,15 @@ export async function getPlasmaInventory(hospitalId: number) {
       ORDER BY blood_type
     `
 
-    queryCache.set(cacheKey, plasma)
-    return plasma
+    // Ensure numeric values are properly parsed
+    const processedData = plasma.map((item) => ({
+      ...item,
+      count: Number(item.count || 0),
+      total_amount: Number(item.total_amount || 0),
+    }))
+
+    queryCache.set(cacheKey, processedData)
+    return processedData
   } catch (error) {
     throw logError(error, "Get Plasma Inventory")
   }
@@ -282,7 +260,6 @@ export async function getPlateletsInventory(hospitalId: number) {
     const cached = queryCache.get<any[]>(cacheKey)
 
     if (cached) {
-      console.log("Using cached platelets data:", cached)
       return cached
     }
 
@@ -295,8 +272,6 @@ export async function getPlateletsInventory(hospitalId: number) {
       ORDER BY blood_type, rh
     `
 
-    console.log("Raw platelets data from DB:", platelets)
-
     // Ensure numeric values are properly parsed
     const processedData = platelets.map((item) => ({
       ...item,
@@ -304,13 +279,9 @@ export async function getPlateletsInventory(hospitalId: number) {
       total_amount: Number(item.total_amount || 0),
     }))
 
-    console.log("Processed platelets data:", processedData)
-
-    queryCache.invalidate(cacheKey) // Clear any potentially stale cache
     queryCache.set(cacheKey, processedData)
     return processedData
   } catch (error) {
-    console.error("Error fetching platelets inventory:", error)
     throw logError(error, "Get Platelets Inventory")
   }
 }
@@ -506,18 +477,6 @@ export async function addNewPlasmaBag(
   adminPassword: string,
 ) {
   try {
-    // Check database connection first
-    const isConnected = await checkDatabaseConnection()
-    if (!isConnected) {
-      return {
-        success: false,
-        error: "Database connection error",
-        type: ErrorType.DATABASE_CONNECTION,
-        details: "Unable to connect to the database. Please try again later.",
-        retryable: true,
-      }
-    }
-
     // Validate admin credentials
     const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
     if (!adminCheck) {
@@ -631,18 +590,6 @@ export async function addNewPlateletsBag(
   adminPassword: string,
 ) {
   try {
-    // Check database connection first
-    const isConnected = await checkDatabaseConnection()
-    if (!isConnected) {
-      return {
-        success: false,
-        error: "Database connection error",
-        type: ErrorType.DATABASE_CONNECTION,
-        details: "Unable to connect to the database. Please try again later.",
-        retryable: true,
-      }
-    }
-
     // Validate admin credentials
     const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
     if (!adminCheck) {
@@ -758,18 +705,6 @@ export async function addNewRedBloodBag(
   adminPassword: string,
 ) {
   try {
-    // Check database connection first
-    const isConnected = await checkDatabaseConnection()
-    if (!isConnected) {
-      return {
-        success: false,
-        error: "Database connection error",
-        type: ErrorType.DATABASE_CONNECTION,
-        details: "Unable to connect to the database. Please try again later.",
-        retryable: true,
-      }
-    }
-
     // Validate admin credentials
     const adminCheck = await verifyAdminCredentials(adminUsername, adminPassword)
     if (!adminCheck) {
@@ -875,17 +810,12 @@ export async function addNewRedBloodBag(
 
 // Function to check database connection
 export async function checkDatabaseConnection() {
-  if (IS_FALLBACK_MODE) {
-    return false
-  }
-
   try {
     // Use tagged template literal syntax
     await dbClient`SELECT 1`
     return true
   } catch (error) {
     console.error("Database connection check failed:", error)
-    IS_FALLBACK_MODE = true
     return false
   }
 }
@@ -1096,4 +1026,10 @@ async function verifyEntryOwnership(bagId: number, entryType: string, hospitalId
       details: appError.details,
     }
   }
+}
+
+const IS_FALLBACK_MODE = false
+
+const FALLBACK_DATA = {
+  admins: [],
 }
